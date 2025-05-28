@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { Ionicons } from '@expo/vector-icons'; // Or your preferred icon set
+import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { useColorScheme } from '../../hooks/useColorScheme';
 
@@ -12,36 +12,51 @@ export default function TabLayout() {
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme].tint,
         tabBarInactiveTintColor: Colors[colorScheme].tabIconDefault,
-        headerShown: false, // Tabs navigator itself won't show a header per tab screen
+        headerShown: false,
+        tabBarStyle: {
+          backgroundColor: Colors[colorScheme].background,
+          borderTopColor: Colors[colorScheme].text + '20',
+        }
       }}>
       <Tabs.Screen
-        name="index" // This refers to app/(tabs)/index.tsx (HomeScreen)
+        name="index" // HomeScreen
         options={{
           title: 'Home',
           tabBarIcon: ({ color, focused, size }) => (
-            <Ionicons
-              name={focused ? 'home' : 'home-outline'}
-              color={color}
-              size={size}
-            />
+            <Ionicons name={focused ? 'home' : 'home-outline'} color={color} size={size} />
           ),
         }}
       />
-      {/*
-        Ensure there is NO <Tabs.Screen name="explore" ... /> entry here.
-        explore.tsx will be a regular screen pushed onto the stack, not a tab.
-      */}
-      {/* Add any OTHER actual tabs you want here, for example:
       <Tabs.Screen
-        name="profile" // This would refer to app/(tabs)/profile.tsx
+        name="chats" // ChatsListScreen
+        options={{
+          title: 'Messages',
+          tabBarIcon: ({ color, focused, size }) => (
+            <Ionicons name={focused ? 'chatbubbles' : 'chatbubbles-outline'} color={color} size={size} />
+          ),
+        }}
+      />
+
+      {/* NEW "MY LISTINGS" TAB */}
+      <Tabs.Screen
+        name="myListings" // This will look for app/(tabs)/myListings.tsx
+        options={{
+          title: 'My Listings',
+          tabBarIcon: ({ color, focused, size }) => (
+            <Ionicons name={focused ? 'list-circle' : 'list-circle-outline'} color={color} size={size} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="profile" // ProfileScreen
         options={{
           title: 'Profile',
           tabBarIcon: ({ color, focused, size }) => (
-            <Ionicons name={focused ? 'person' : 'person-outline'} color={color} size={size} />
+            <Ionicons name={focused ? 'person-circle' : 'person-circle-outline'} color={color} size={size} />
           ),
         }}
       />
-      */}
     </Tabs>
   );
 }

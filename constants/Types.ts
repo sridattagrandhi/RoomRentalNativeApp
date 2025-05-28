@@ -28,3 +28,22 @@ export interface Message {
   timestamp: Date;    // Or use string if you prefer, then parse
   // Optional: add recipientId if you store all messages globally and filter
 }
+
+export interface UserProfile {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string; // Optional
+  bio?: string;   // Optional
+  profileImageUrl?: string; // Optional
+  // Add other fields as needed, e.g., dateOfBirth, address, etc.
+}
+
+export interface ChatListItem {
+  chatId: string; // This will be the ID of the other user/owner
+  recipientName: string; // Name of the person or context of the chat (e.g., Listing Title)
+  recipientAvatar?: string; // URL for their avatar (optional)
+  lastMessageText: string;
+  lastMessageTimestamp: Date; // Or string
+  unreadCount?: number; // Optional for now
+}

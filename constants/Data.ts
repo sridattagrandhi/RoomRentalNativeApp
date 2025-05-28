@@ -1,4 +1,4 @@
-import { Listing, Message } from './Types'; // Ensure Types.ts has all necessary fields
+import { Listing, Message, UserProfile, ChatListItem } from './Types'; // Ensure Types.ts has all necessary fields
 
 export let mockListings: Listing[] = [
   {
@@ -34,21 +34,21 @@ export const findListingById = (id: string | undefined): Listing | undefined => 
   return mockListings.find(listing => listing.id === id);
 };
 
-export const addMockListing = (newListingData: Omit<Listing, 'id'>): Listing => {
-  // --- CORRECTED newId GENERATION ---
-  const newId = `mock-${Date.now()}-${Math.random()
-    .toString(36)
-    .substring(2, 7)}`;
-  // --- END OF CORRECTION ---
-
-  // Ensure newListingData from post-room.tsx contains 'image' and 'imageUris'
+export const addMockListing = (newListingData: Omit<Listing, 'id' | 'ownerId'>): Listing => {
+  const newId = `mock-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
   const listingWithId: Listing = {
-    ...newListingData, // newListingData should already have image and imageUris from post-room.tsx
+    ...newListingData,
     id: newId,
+    ownerId: MOCK_CURRENT_USER_ID, // Assign current user as owner
+    // Ensure all required fields from Listing type are present in newListingData or defaulted here
+    // For example, if 'imageUris' is required but not always in newListingData:
+    imageUris: newListingData.imageUris || (newListingData.image ? [newListingData.image] : []),
+    // Default other potentially missing required fields if necessary
+    isAvailable: newListingData.isAvailable !== undefined ? newListingData.isAvailable : true,
+    postedDate: newListingData.postedDate || new Date().toISOString(),
   };
-  mockListings.push(listingWithId); // Or mockListings.unshift(listingWithId) to see it at the top
+  mockListings.unshift(listingWithId); // Add to the beginning to see it easily
   console.log('Added new listing to mockData:', listingWithId);
-  console.log('Current mockListings count:', mockListings.length);
   return listingWithId;
 };
 
@@ -81,4 +81,101 @@ export const addChatMessage = (chatId: string, messageText: string, senderId: st
   };
   mockChatMessages[chatId].push(newMessage);
   return newMessage;
+};
+
+export const mockUserProfile: UserProfile = {
+  id: 'user_jane_doe_001',
+  name: 'Jane Doe',
+  email: 'jane.doe@example.com',
+  phone: '555-123-4567',
+  bio: 'Loves finding great places to stay and exploring new cities. Looking for quiet and clean roommates.',
+  profileImageUrl: 'https://placehold.co/400x400/EFEFEF/AAAAAA&text=JD', // Placeholder image
+};
+
+export const updateMockUserProfile = (updatedProfileData: Partial<UserProfile>): UserProfile => {
+  // In a real app, you'd send this to a backend.
+  // For now, we merge with the existing mockUserProfile.
+  // Note: This simple merge won't work if mockUserProfile is 'const'.
+  // For a more robust in-memory update, you might re-assign or use a state management solution.
+  // For this template, we'll assume for now that direct modification or a more complex state solution would handle this.
+  // This example won't directly mutate mockUserProfile to keep it simple for the template.
+  // Instead, the component will manage its own editable state.
+  console.log("Simulating profile update with:", updatedProfileData);
+  // This function would return the updated profile from a backend in a real scenario.
+  // For the template, the component will handle its own state changes.
+  return { ...mockUserProfile, ...updatedProfileData };
+};
+
+// --- NEW FUNCTION TO GET CHAT LIST ITEMS ---
+export const getChatListItems = (): ChatListItem[] => {
+  const chatList: ChatListItem[] = [];
+
+  for (const chatId in mockChatMessages) {
+    const messages = mockChatMessages[chatId];
+    if (messages && messages.length > 0) {
+      const lastMessage = messages[messages.length - 1];
+      
+      // Attempt to find a listing associated with this chatId (ownerId)
+      // to get a recipient name (e.g., the listing title or owner's name if available)
+      // For this example, we'll try to find a listing owned by this chatId.
+      // In a real app, you'd have better user data.
+      const relatedListing = mockListings.find(listing => listing.ownerId === chatId);
+      let recipientName = `Chat with User ${chatId.substring(0, 5)}`; // Default name
+      let recipientAvatar = `https://placehold.co/100x100/777777/FFFFFF&text=${chatId.substring(0,1).toUpperCase()}`; // Default avatar
+
+      if (relatedListing) {
+        recipientName = relatedListing.title; // Use listing title as chat context
+        // If you had owner names in listings or a separate users table:
+        // recipientName = findUserNameById(chatId) || relatedListing.title;
+      } else {
+        // If no listing, maybe it's a direct chat with a user not tied to a listing
+        // For now, we use a generic name.
+        // If you had a mockUsers array:
+        // const user = mockUsers.find(u => u.id === chatId);
+        // if (user) recipientName = user.name;
+      }
+
+
+      chatList.push({
+        chatId: chatId,
+        recipientName: recipientName,
+        recipientAvatar: recipientAvatar, // Placeholder, replace with actual user avatar logic
+        lastMessageText: lastMessage.text,
+        lastMessageTimestamp: lastMessage.timestamp,
+        // unreadCount: calculateUnreadMessages(chatId), // Implement this if needed
+      });
+    }
+  }
+  // Sort chats by the most recent message
+  chatList.sort((a, b) => b.lastMessageTimestamp.getTime() - a.lastMessageTimestamp.getTime());
+  return chatList;
+};
+
+export const getMyMockListings = (): Listing[] => {
+  return mockListings.filter(listing => listing.ownerId === MOCK_CURRENT_USER_ID)
+                     .sort((a, b) => new Date(b.postedDate || 0).getTime() - new Date(a.postedDate || 0).getTime()); // Sort by most recent
+};
+
+export const updateMockListing = (
+  listingId: string,
+  updatedData: Partial<Omit<Listing, 'id' | 'ownerId'>> // Cannot change id or ownerId
+): Listing | undefined => {
+  const listingIndex = mockListings.findIndex(listing => listing.id === listingId && listing.ownerId === MOCK_CURRENT_USER_ID);
+  if (listingIndex === -1) {
+    console.warn(`Listing with ID ${listingId} not found or not owned by current user.`);
+    return undefined; // Listing not found or not owned by current user
+  }
+
+  // Merge existing data with updated data
+  const updatedListing = {
+    ...mockListings[listingIndex],
+    ...updatedData,
+    // Ensure fields like imageUris are handled correctly if updatedData contains them
+    imageUris: updatedData.imageUris || mockListings[listingIndex].imageUris,
+    image: updatedData.image || mockListings[listingIndex].image,
+  };
+
+  mockListings[listingIndex] = updatedListing;
+  console.log('Updated listing in mockData:', updatedListing);
+  return updatedListing;
 };
