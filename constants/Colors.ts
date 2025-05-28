@@ -1,26 +1,34 @@
-/**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
- */
+const primaryColor = '#4F6D7A';
+const accentColor = '#D57A66';
 
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
+const defaultText = '#333333';
+const defaultBackground = '#FFFFFF';
+
+const lightTheme = {
+  text: defaultText,
+  background: defaultBackground,
+  tint: primaryColor,
+  tabIconDefault: '#A0A0A0',
+  primary: primaryColor,
+  accent: accentColor,
+};
+
+const darkTheme = {
+  text: '#EAEAEA',
+  background: '#121212',
+  tint: accentColor,
+  tabIconDefault: '#707070',
+  primary: primaryColor, // You might want to adjust these for dark theme too
+  accent: accentColor,
+};
 
 export const Colors = {
-  light: {
-    text: '#11181C',
-    background: '#fff',
-    tint: tintColorLight,
-    icon: '#687076',
-    tabIconDefault: '#687076',
-    tabIconSelected: tintColorLight,
-  },
-  dark: {
-    text: '#ECEDEE',
-    background: '#151718',
-    tint: tintColorDark,
-    icon: '#9BA1A6',
-    tabIconDefault: '#9BA1A6',
-    tabIconSelected: tintColorDark,
-  },
+  light: lightTheme,
+  dark: darkTheme,
+
+  // Ensure these top-level colors are available for direct use
+  primary: primaryColor,
+  accent: accentColor,
+  text: defaultText,         // ✅ Now explicitly available at top level
+  background: defaultBackground, // ✅ Now explicitly available at top level
 };

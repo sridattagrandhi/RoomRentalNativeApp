@@ -1,75 +1,117 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+// app/(tabs)/index.tsx
+import React, { useState, useCallback } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  SafeAreaView,
+  StatusBar,
+  TextInput,
+  Keyboard,
+  Platform, // For Platform specific styles if needed
+} from 'react-native';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons'; // For icons
 
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+import CityPicker from '../../components/CityPicker'; // Your existing component
+import ThemedText from '../../components/ThemedText'; // Assuming this is styled for body text
+import { Colors } from '../../constants/Colors';
+import { useColorScheme } from '../../hooks/useColorScheme'; // If you want theme-aware elements
+
+import { styles } from './index.styles'; // We'll imagine new styles here
 
 export default function HomeScreen() {
+  const router = useRouter();
+  const colorScheme = useColorScheme() || 'light';
+  const currentThemeColors = Colors[colorScheme]; // For theme-aware styling
+
+  const [selectedCity, setSelectedCity] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState<string>(''); // For the search bar input
+
+  const handleCitySelection = useCallback((city: string) => {
+    setSelectedCity(city);
+    setSearchQuery(city); // Update search bar text when a chip is pressed
+    Keyboard.dismiss();
+  }, []);
+
+  const handleViewListings = () => {
+    const cityToSearch = selectedCity || searchQuery; // Prefer selectedCity, fallback to searchQuery
+    if (cityToSearch.trim()) {
+      router.push({
+        pathname: '/rentals/explore', // Assuming this is the correct path
+        params: { city: cityToSearch.trim() },
+      });
+    } else {
+      alert('Please select or enter a city first.');
+    }
+  };
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: currentThemeColors.background }]}>
+      <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
+
+      <View style={styles.contentWrapper}>
+        <View style={styles.headerSection}>
+          <ThemedText style={[styles.welcomeTitle, { color: currentThemeColors.text }]}>
+            Find Your Next Stay
+          </ThemedText>
+          <ThemedText style={[styles.welcomeSubtitle, { color: currentThemeColors.text }]}>
+            Search for rooms in your desired city.
+          </ThemedText>
+        </View>
+
+        <View style={styles.searchSection}>
+          <View style={[styles.searchInputContainer, { backgroundColor: currentThemeColors.background, borderColor: currentThemeColors.primary /* or a muted border */ }]}>
+            <Ionicons name="search-outline" size={22} color={currentThemeColors.text} style={styles.searchIcon} />
+            <TextInput
+              style={[styles.searchInput, { color: currentThemeColors.text }]}
+              placeholder="Enter city name..."
+              placeholderTextColor={currentThemeColors.tabIconDefault} // Muted color
+              value={searchQuery}
+              onChangeText={(text) => {
+                setSearchQuery(text);
+                // If user clears search after selecting a city chip, clear selectedCity too
+                if (selectedCity && text !== selectedCity) {
+                  setSelectedCity('');
+                }
+              }}
+              // onSubmitEditing could also trigger handleViewListings if you want search on enter
+            />
+            {searchQuery ? (
+              <TouchableOpacity onPress={() => { setSearchQuery(''); setSelectedCity(''); }} style={styles.clearIconContainer}>
+                <Ionicons name="close-circle" size={22} color={currentThemeColors.tabIconDefault} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        </View>
+
+        <View style={styles.cityPickerSection}>
+          <ThemedText style={[styles.popularCitiesTitle, { color: currentThemeColors.text }]}>
+            Or select a popular city:
+          </ThemedText>
+          {/* CityPicker will need its internal button styles updated to look like chips */}
+          <CityPicker
+            onCitySelect={handleCitySelection}
+            currentCity={selectedCity}
+            // You might pass availableCities prop here if CityPicker is adapted
+          />
+        </View>
+
+        <View style={styles.footerSection}>
+          <TouchableOpacity
+            style={[
+              styles.viewListingsButton,
+              { backgroundColor: (selectedCity.trim() || searchQuery.trim()) ? currentThemeColors.primary : currentThemeColors.tabIconDefault } // Dim if no city
+            ]}
+            onPress={handleViewListings}
+            disabled={!(selectedCity.trim() || searchQuery.trim())}
+          >
+            <Text style={[styles.viewListingsButtonText, { color: currentThemeColors.background }]}>
+              View Listings
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
-});
