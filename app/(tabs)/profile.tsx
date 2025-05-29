@@ -9,22 +9,23 @@ import {
   TextInput,
   Alert,
   Platform,
-  StyleSheet, // Ensure StyleSheet is imported
+  StyleSheet, // Ensure StyleSheet is imported if styles are defined here
 } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router'; // useRouter is already here
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 
 import { Colors } from '../../constants/Colors';
 import { useColorScheme } from '../../hooks/useColorScheme';
 import { UserProfile } from '../../constants/Types';
-import { mockUserProfile, updateMockUserProfile } from '../../constants/Data';
+import { mockUserProfile /*, updateMockUserProfile */ } from '../../constants/Data'; // updateMockUserProfile might be used differently
 import ThemedView from '../../components/ThemedView';
 import ThemedText from '../../components/ThemedText';
+import { styles } from './profile.styles'
 // Assuming profile.styles.ts is in the same directory or you define styles here
-import { styles } from './profile.styles';
+// If it's separate: import { styles } from './profile.styles';
 
-// Helper component for editable fields
+// Helper component for editable fields (keep this as it was)
 interface EditableFieldProps {
   label: string;
   value: string | undefined;
@@ -99,12 +100,11 @@ const EditableField: React.FC<EditableFieldProps> = ({
 
 
 export default function ProfileScreen() {
-  const router = useRouter();
+  const router = useRouter(); // useRouter is already imported
   const colorScheme = useColorScheme() || 'light';
   const currentThemeColors = Colors[colorScheme];
 
   const [userProfile, setUserProfile] = useState<UserProfile>(mockUserProfile);
-  // Initialize profileImageUri with the mock data, which might be a remote URL or undefined
   const [profileImageUri, setProfileImageUri] = useState<string | undefined>(mockUserProfile.profileImageUrl);
 
 
@@ -112,38 +112,40 @@ export default function ProfileScreen() {
     setUserProfile(prev => {
       const updatedProfile = { ...prev, [field]: newValue };
       console.log(`Updating ${field} to:`, newValue);
-      // In a real app, you'd call an API here to save the changes
-      // updateMockUserProfile(updatedProfile); // This was a placeholder
+      // In a real app, call API to update backend
+      // updateMockUserProfile({ [field]: newValue }); // Example if you had a central mock update
       return updatedProfile;
     });
   };
 
   const pickImageAsync = async () => {
-    // Request permission first
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (permissionResult.granted === false) {
       Alert.alert("Permission Denied", "Access to photos is needed to update your profile picture.");
       return;
     }
-
     let result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true, // Allows user to crop/edit the image
-      aspect: [1, 1],     // Enforces a square aspect ratio for profile pictures
-      quality: 0.5,       // Compress image slightly
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.5,
     });
-
     if (!result.canceled && result.assets && result.assets.length > 0) {
       const newUri = result.assets[0].uri;
-      setProfileImageUri(newUri); // Update state to show the newly picked image
-      // Also update the userProfile state if profileImageUrl is part of it
+      setProfileImageUri(newUri);
       setUserProfile(prev => ({...prev, profileImageUrl: newUri}));
-      console.log("New profile image URI (local):", newUri);
-      // In a real app, you would now upload this image URI (result.assets[0].uri)
-      // to your server, get back a permanent URL, and then save that URL
-      // to the user's profile data on the server.
     }
   };
+
+  // --- NEW LOGOUT HANDLER ---
+  const handleLogout = () => {
+    // In a real app, you would clear any stored tokens, user data, etc.
+    console.log("User logging out...");
+    // Navigate to the login screen, replacing the current history stack
+    // so the user can't go back to the profile page.
+    router.replace('/(auth)/login');
+  };
+  // --- END OF NEW LOGOUT HANDLER ---
 
 
   return (
@@ -158,17 +160,17 @@ export default function ProfileScreen() {
           //borderBottomColor: currentThemeColors.text + '20',
         }}
       />
-      <ThemedView style={styles.container}> {/* Ensure ThemedView is used if styles.container expects it */}
+      <ThemedView style={styles.container}>
         <ScrollView
           style={styles.scrollContainer}
           contentContainerStyle={styles.scrollContentContainer}
           showsVerticalScrollIndicator={false}
         >
-          <View style={[styles.headerSection, { backgroundColor: currentThemeColors.background /* or a subtle accent like primary + '10' */ }]}>
+          {/* Profile Header Section (Image, Name, Email) */}
+          <View style={[styles.headerSection, { backgroundColor: currentThemeColors.background }]}>
             <TouchableOpacity onPress={pickImageAsync}>
               <Image
-                // --- UPDATED DEFAULT IMAGE PATH ---
-                source={profileImageUri ? { uri: profileImageUri } : require('../../assets/images/avatar.jpg')}
+                source={profileImageUri ? { uri: profileImageUri } : require('../../assets/images/avatar.jpg')} // Using avatar.jpg as default
                 style={[styles.profileImage, { borderColor: currentThemeColors.primary }]}
               />
               <View style={{position: 'absolute', bottom: 10, right: 5, backgroundColor: currentThemeColors.background, borderRadius: 15, padding:5, elevation: 2, shadowColor: '#000', shadowOffset: {width:0, height:1}, shadowOpacity:0.2, shadowRadius:1}}>
@@ -179,38 +181,15 @@ export default function ProfileScreen() {
             <ThemedText style={[styles.userEmail, { color: currentThemeColors.text + 'AA' }]}>{userProfile.email}</ThemedText>
           </View>
 
+          {/* Editable Info Section */}
           <View style={styles.infoSection}>
-            <EditableField
-              label="Full Name"
-              value={userProfile.name}
-              onSave={(newValue) => handleProfileUpdate('name', newValue)}
-              themeColors={currentThemeColors}
-            />
-            <EditableField
-              label="Email Address"
-              value={userProfile.email}
-              onSave={(newValue) => handleProfileUpdate('email', newValue)}
-              keyboardType="email-address"
-              themeColors={currentThemeColors}
-            />
-            <EditableField
-              label="Phone Number"
-              value={userProfile.phone}
-              onSave={(newValue) => handleProfileUpdate('phone', newValue)}
-              keyboardType="phone-pad"
-              placeholder="Add phone number"
-              themeColors={currentThemeColors}
-            />
-            <EditableField
-              label="Bio"
-              value={userProfile.bio}
-              onSave={(newValue) => handleProfileUpdate('bio', newValue)}
-              multiline
-              placeholder="Tell us about yourself"
-              themeColors={currentThemeColors}
-            />
+            <EditableField label="Full Name" value={userProfile.name} onSave={(newValue) => handleProfileUpdate('name', newValue)} themeColors={currentThemeColors}/>
+            <EditableField label="Email Address" value={userProfile.email} onSave={(newValue) => handleProfileUpdate('email', newValue)} keyboardType="email-address" themeColors={currentThemeColors}/>
+            <EditableField label="Phone Number" value={userProfile.phone} onSave={(newValue) => handleProfileUpdate('phone', newValue)} keyboardType="phone-pad" placeholder="Add phone number" themeColors={currentThemeColors}/>
+            <EditableField label="Bio" value={userProfile.bio} onSave={(newValue) => handleProfileUpdate('bio', newValue)} multiline placeholder="Tell us about yourself" themeColors={currentThemeColors}/>
           </View>
 
+          {/* Actions Section */}
           <View style={styles.actionsSection}>
             <TouchableOpacity style={[styles.actionButton, {borderBottomColor: currentThemeColors.text + '20'}]}>
                 <Ionicons name="settings-outline" size={22} color={currentThemeColors.primary} />
@@ -220,10 +199,15 @@ export default function ProfileScreen() {
                 <Ionicons name="help-circle-outline" size={22} color={currentThemeColors.primary} />
                 <ThemedText style={[styles.actionButtonText, {color: currentThemeColors.text}]}>Help & Support</ThemedText>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.actionButton, {borderBottomColor: currentThemeColors.text + '20'}]}>
-                <Ionicons name="log-out-outline" size={22} color={Colors.light.accent} /> {/* Or use a themed error/accent color */}
+            {/* --- UPDATED LOGOUT BUTTON --- */}
+            <TouchableOpacity
+              style={[styles.actionButton, {borderBottomColor: currentThemeColors.text + '20'}]}
+              onPress={handleLogout} // Added onPress handler
+            >
+                <Ionicons name="log-out-outline" size={22} color={Colors.light.accent} /> {/* Or use a themed color: currentThemeColors.accent or a specific error/logout color */}
                 <ThemedText style={[styles.actionButtonText, {color: Colors.light.accent}]}>Logout</ThemedText>
             </TouchableOpacity>
+            {/* --- END OF UPDATED LOGOUT BUTTON --- */}
           </View>
 
         </ScrollView>
