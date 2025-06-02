@@ -1,0 +1,27 @@
+// backend/tsconfig.json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+
+    // Point at both the node_modules/@types and our own src/types folder:
+    "typeRoots": [
+      "./node_modules/@types",
+      "./src/types"
+    ]
+  },
+  "include": [
+    "src/**/*"    // This ensures TS “sees” all .ts/.d.ts files under src
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
+}

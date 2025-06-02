@@ -36,4 +36,10 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
+# Backend specific
+backend/node_modules/
+backend/.env
+backend/dist/
+backend/config/firebaseServiceAccountKey.json
+
 app-example
