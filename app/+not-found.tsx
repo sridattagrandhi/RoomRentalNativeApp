@@ -1,19 +1,31 @@
 import { Link, Stack } from 'expo-router';
-import { StyleSheet } from 'react-native';
+import React from 'react';
+import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+// Assuming your ThemedText component is located here:
+import ThemedText from '../components/ThemedText';
+import { Colors } from '../constants/Colors';
+import { useColorScheme } from '../hooks/useColorScheme';
 
 export default function NotFoundScreen() {
+  const colorScheme = useColorScheme() || 'light';
+  const currentThemeColors = Colors[colorScheme];
+
   return (
     <>
       <Stack.Screen options={{ title: 'Oops!' }} />
-      <ThemedView style={styles.container}>
-        <ThemedText type="title">This screen does not exist.</ThemedText>
-        <Link href="/" style={styles.link}>
-          <ThemedText type="link">Go to home screen!</ThemedText>
+      <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
+        {/* Use ThemedText with style prop, not type prop */}
+        <ThemedText style={styles.title}>This screen doesn't exist.</ThemedText>
+
+        <Link href="/" asChild>
+          <TouchableOpacity style={styles.link}>
+            <Text style={[styles.linkText, { color: currentThemeColors.primary }]}>
+              Go to home screen!
+            </Text>
+          </TouchableOpacity>
         </Link>
-      </ThemedView>
+      </View>
     </>
   );
 }
@@ -25,8 +37,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 20,
   },
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 15,
+  },
   link: {
     marginTop: 15,
     paddingVertical: 15,
+  },
+  linkText: {
+    fontSize: 14,
+    fontWeight: 'bold',
   },
 });

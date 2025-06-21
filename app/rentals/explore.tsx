@@ -1,115 +1,191 @@
+// app/rental/explore.tsx
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, FlatList, TouchableOpacity, SafeAreaView, ActivityIndicator, StyleSheet } from 'react-native';
-import { useRouter, useLocalSearchParams, Stack, useFocusEffect } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons'; // Still needed for the FAB icon
+import {
+  View,
+  Text,
+  FlatList,
+  TouchableOpacity,
+  SafeAreaView,
+  ActivityIndicator,
+  StyleSheet,
+  Platform,
+  Alert,
+  RefreshControl,
+  ScrollView,
+  Image, // Import Image for the card
+} from 'react-native';
+import { useRouter, useLocalSearchParams, Stack } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
-// We no longer need useSafeAreaInsets here if we're not building a fully custom header view manually
-// import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-import ListingCard from '../../components/ListingCard';
 import ThemedView from '../../components/ThemedView';
 import ThemedText from '../../components/ThemedText';
 import { Colors } from '../../constants/Colors';
-import { mockListings } from '../../constants/Data';
 import { Listing } from '../../constants/Types';
-import { styles as screenStyles } from './explore.styles'; // Assuming styles are in explore.styles.ts
-import { useColorScheme } from '../../hooks/useColorScheme'; // To get current color scheme for headerTintColor
+import { useColorScheme } from '../../hooks/useColorScheme';
+import { styles } from './explore.styles'; // Import our new styles
+
+// A new, redesigned ListingCard component defined within this file
+interface ListingCardProps {
+  listing: Listing;
+  onPress: () => void;
+  themeColors: typeof Colors.light;
+}
+
+const ListingCard: React.FC<ListingCardProps> = ({ listing, onPress, themeColors }) => {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      style={[styles.cardContainer, { backgroundColor: themeColors.background }]}
+    >
+      <Image
+        source={listing.image ? { uri: listing.image } : require('../../assets/images/avatar.jpg')}
+        style={styles.cardImage}
+      />
+      
+      {/* Rent Price Badge */}
+      <View style={[styles.rentContainer, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
+        <Text style={[styles.rentText, { color: '#FFFFFF' }]}>
+          ₹{listing.rent.toLocaleString()}/month
+        </Text>
+      </View>
+
+      <View style={styles.cardContent}>
+        <ThemedText style={[styles.cardTitle, { color: themeColors.text }]} numberOfLines={1}>
+          {listing.title}
+        </ThemedText>
+        
+        <View style={styles.locationContainer}>
+          <Ionicons name="location-outline" size={16} color={themeColors.text + '99'} />
+          <ThemedText style={[styles.locationText, { color: themeColors.text + '99' }]} numberOfLines={1}>
+            {listing.locality}, {listing.city}
+          </ThemedText>
+        </View>
+
+        <View style={[styles.detailsContainer, { borderTopColor: themeColors.text + '15', borderTopWidth: 1 }]}>
+          <View style={styles.detailItem}>
+            <Ionicons name="bed-outline" size={18} color={themeColors.primary} />
+            <ThemedText style={[styles.detailText, { color: themeColors.text }]}>
+              {listing.bedrooms} Beds
+            </ThemedText>
+          </View>
+          <View style={styles.detailItem}>
+            <Ionicons name="water-outline" size={18} color={themeColors.primary} />
+            <ThemedText style={[styles.detailText, { color: themeColors.text }]}>
+              {listing.bathrooms} Baths
+            </ThemedText>
+          </View>
+          {listing.areaSqFt && (
+             <View style={styles.detailItem}>
+                <Ionicons name="scan-outline" size={18} color={themeColors.primary} />
+                <ThemedText style={[styles.detailText, { color: themeColors.text }]}>
+                  {listing.areaSqFt} sqft
+                </ThemedText>
+              </View>
+          )}
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+};
+
 
 export default function ExploreScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ city?: string }>();
-  const [filteredListings, setFilteredListings] = useState<Listing[]>([]);
+  const [listings, setListings] = useState<Listing[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const colorScheme = useColorScheme() || 'light'; // For headerTintColor
 
-  const city = params.city; // Used for filtering, not for header title anymore
+  const colorScheme = useColorScheme() || 'light';
+  const currentThemeColors = Colors[colorScheme];
+  const city = params.city;
 
-  useFocusEffect(
-    useCallback(() => {
-      setIsLoading(true);
-      // console.log("Explore screen focused. City:", city, "MockListings count:", mockListings.length);
-      if (city) {
-        const listingsForCity = mockListings.filter(
-          (listing) => listing.city.toLowerCase() === city.toLowerCase()
-        );
-        setFilteredListings(listingsForCity);
-      } else {
-        setFilteredListings([]);
-      }
+  const fetchListings = useCallback(async (isRefreshing = false) => {
+    if (!city) {
       setIsLoading(false);
+      return;
+    }
+    if (!isRefreshing) {
+        setIsLoading(true);
+    }
+    
+    try {
+      const YOUR_BACKEND_BASE_URL = 'http://localhost:5001'; // CONFIGURE
+      const endpoint = `${YOUR_BACKEND_BASE_URL}/api/listings?city=${encodeURIComponent(city)}`;
+      
+      const response = await fetch(endpoint);
+      if (!response.ok) { throw new Error('Failed to fetch listings.'); }
+      const data: Listing[] = await response.json();
+      setListings(data);
+    } catch (error: any) {
+      console.error("Error fetching listings:", error);
+      Alert.alert("Error", "Could not load listings.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [city]);
 
-      return () => {
-        // Optional: cleanup function when screen loses focus
-        // console.log("Explore screen unfocused");
-      };
-    }, [city]) // Re-run if city changes (though focus will also trigger it)
-  );
-
-  const handleAddListing = () => {
-    router.push('/rentals/post-room');
-  };
+  useEffect(() => {
+    fetchListings();
+  }, [fetchListings]);
 
   if (isLoading) {
     return (
-      <SafeAreaView style={screenStyles.safeArea}>
-        <ThemedView style={[screenStyles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-          <ActivityIndicator size="large" color={Colors[colorScheme].primary} />
-        </ThemedView>
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: currentThemeColors.background }]}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={currentThemeColors.primary} />
+        </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={screenStyles.safeArea}>
-      <ThemedView style={screenStyles.container}>
-        {/* Configure the default Stack Navigator header */}
-        <Stack.Screen
-          options={{
-            headerShown: true,        // Show the default header
-            title: 'Listings',                // No title text on the listings page itself
-            headerBackTitle: 'Home',  // Set back button text to "Home" (primarily iOS)
-            headerTintColor: Colors[colorScheme].primary, // Color for back arrow and back title
-            // The default action for the back button is router.back(),
-            // which will navigate to the previous screen (HomeScreen).
-
-            // For Android, headerBackTitle doesn't show text by default.
-            // If you need "< Home" on Android too, you might need a custom headerLeft,
-            // but try without it first to keep it simple.
-            // headerLeft: (props) => (
-            //   <HeaderBackButton
-            //     {...props}
-            //     label="Home" // This label might show on some Androids or with custom config
-            //     onPress={() => router.back()} // or router.replace('/(tabs)/'); if you want to be explicit
-            //   />
-            // ),
-          }}
-        />
-
-        {filteredListings.length > 0 ? (
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: currentThemeColors.background }]}>
+      <Stack.Screen
+        options={{
+          headerShown: true,
+          title: city ? `Listings in ${city}` : 'Listings',
+          headerBackTitle: 'Home',
+          headerTintColor: currentThemeColors.primary,
+          headerStyle: { backgroundColor: currentThemeColors.background },
+          headerShadowVisible: false,
+        }}
+      />
+      <ThemedView style={styles.container}>
+        {listings.length > 0 ? (
           <FlatList
-            data={filteredListings}
+            data={listings}
             renderItem={({ item }) => (
               <ListingCard
                 listing={item}
-                onPress={() => router.push(`/listings/${item.id}`)}
+                onPress={() => router.push(`/listings/${item.id || item._id}`)} // Use _id as fallback
+                themeColors={currentThemeColors}
               />
             )}
-            keyExtractor={(item) => item.id.toString()}
-            contentContainerStyle={screenStyles.listContentContainer}
+            keyExtractor={(item) => (item.id || item._id!).toString()}
+            contentContainerStyle={styles.listContentContainer}
+            refreshControl={
+              <RefreshControl refreshing={isLoading} onRefresh={() => fetchListings(true)} tintColor={currentThemeColors.primary} />
+            }
           />
         ) : (
-          <View style={screenStyles.emptyContainer}>
-            <ThemedText style={screenStyles.emptyText}>
-              No listings found for {city || 'this city'} yet.
+          <ScrollView
+            contentContainerStyle={styles.emptyContainer}
+            refreshControl={
+              <RefreshControl refreshing={isLoading} onRefresh={() => fetchListings(true)} tintColor={currentThemeColors.primary} />
+            }
+          >
+            <Ionicons name="search-outline" size={60} color={currentThemeColors.text + '70'} />
+            <ThemedText style={[styles.emptyText, { color: currentThemeColors.text + 'AA' }]}>
+              No listings found for {city || 'this city'}.
             </ThemedText>
-            <ThemedText style={screenStyles.emptyText}>
-              Be the first to add one!
-            </ThemedText>
-          </View>
+          </ScrollView>
         )}
 
-        <TouchableOpacity style={screenStyles.fab} onPress={handleAddListing}>
-          <Ionicons name="add" size={30} color={Colors[colorScheme].background} style={screenStyles.fabIcon} />
+        <TouchableOpacity
+          style={[styles.fab, { backgroundColor: currentThemeColors.primary }]}
+          onPress={() => router.push('/rentals/post-room')}
+        >
+          <Ionicons name="add" size={30} color={currentThemeColors.background} style={styles.fabIcon} />
         </TouchableOpacity>
       </ThemedView>
     </SafeAreaView>

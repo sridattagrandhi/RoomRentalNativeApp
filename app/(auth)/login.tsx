@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+// app/(auth)/login.tsx
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -8,44 +9,60 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  Image, // For logo
   Alert,
-} from 'react-native';
-import { Stack, useRouter, Link } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-
-import { Colors } from '../../constants/Colors';
-import { useColorScheme } from '../../hooks/useColorScheme';
-import { styles } from './auth.styles'; // Shared styles
+  ActivityIndicator,
+} from "react-native";
+import { Stack, useRouter, Link } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { FIREBASE_AUTH } from "../../constants/firebaseConfig";
+import { Colors } from "../../constants/Colors";
+import { useColorScheme } from "../../hooks/useColorScheme";
+import { styles } from "./auth.styles";
 
 export default function LoginScreen() {
   const router = useRouter();
-  const colorScheme = useColorScheme() || 'light';
-  const currentThemeColors = Colors[colorScheme];
+  const colorScheme = useColorScheme() || "light";
+  const theme = Colors[colorScheme];
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = () => {
-    // Basic validation (expand as needed)
-    if (!email.trim() || !password.trim()) {
-      Alert.alert('Missing Information', 'Please enter both email and password.');
+  const handleLogin = async () => {
+    if (!email.trim() || !password) {
+      Alert.alert("Missing Information", "Please enter both email and password.");
       return;
     }
-    // Simulate login success
-    console.log('Login attempt with:', { email, password });
-    Alert.alert('Login Successful (Template)', 'Welcome back!', [
-      { text: 'OK', onPress: () => router.replace('../(tabs)/') }, // Navigate to home screen
-    ]);
-    // In a real app: API call, on success -> router.replace('/(tabs)/');
+
+    setIsLoading(true);
+    try {
+      await signInWithEmailAndPassword(FIREBASE_AUTH, email.trim(), password);
+      // onAuthStateChanged in AuthContext will fire, sync Mongo, then we navigate:
+      router.replace("/(tabs)/home");
+    } catch (error: any) {
+      console.error("Login error:", error);
+      let message = "An unexpected error occurred. Please try again.";
+      if (error.code === "auth/user-not-found" || error.code === "auth/wrong-password") {
+        message = "Invalid email or password. Please try again.";
+      } else if (error.code === "auth/invalid-email") {
+        message = "Please enter a valid email address.";
+      } else if (error.message) {
+        message = error.message;
+      }
+      Alert.alert("Login Failed", message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: currentThemeColors.background }]}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
+
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardAvoidingView}
       >
         <ScrollView
@@ -55,68 +72,96 @@ export default function LoginScreen() {
         >
           <View style={styles.container}>
             <View style={styles.logoContainer}>
-              {/* Replace with your app's logo */}
-              <Ionicons name="home" size={80} color={currentThemeColors.primary} />
+              <Ionicons name="home-outline" size={80} color={theme.primary} />
             </View>
 
-            <Text style={[styles.title, { color: currentThemeColors.text }]}>Welcome Back!</Text>
-            <Text style={[styles.subtitle, { color: currentThemeColors.text + 'AA' }]}>
-              Log in to continue your journey.
+            <Text style={[styles.title, { color: theme.text }]}>Welcome Back!</Text>
+            <Text style={[styles.subtitle, { color: theme.text + "AA" }]}>
+              Log in to continue.
             </Text>
 
-            <View style={[styles.inputContainer, { borderColor: currentThemeColors.text + '30', backgroundColor: currentThemeColors.background + (colorScheme === 'light' ? '' : '11') }]}>
-              <Ionicons name="mail-outline" size={22} color={currentThemeColors.text + '99'} style={styles.inputIcon} />
+            <View style={[styles.inputContainer, { borderColor: theme.text + "30" }]}>
+              <Ionicons
+                name="mail-outline"
+                size={22}
+                color={theme.text + "99"}
+                style={styles.inputIcon}
+              />
               <TextInput
-                style={[styles.input, { color: currentThemeColors.text }]}
+                style={[styles.input, { color: theme.text }]}
                 placeholder="Email Address"
-                placeholderTextColor={currentThemeColors.text + '99'}
+                placeholderTextColor={theme.text + "99"}
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
+                editable={!isLoading}
               />
             </View>
 
-            <View style={[styles.inputContainer, { borderColor: currentThemeColors.text + '30', backgroundColor: currentThemeColors.background + (colorScheme === 'light' ? '' : '11') }]}>
-              <Ionicons name="lock-closed-outline" size={22} color={currentThemeColors.text + '99'} style={styles.inputIcon} />
+            <View style={[styles.inputContainer, { borderColor: theme.text + "30" }]}>
+              <Ionicons
+                name="lock-closed-outline"
+                size={22}
+                color={theme.text + "99"}
+                style={styles.inputIcon}
+              />
               <TextInput
-                style={[styles.input, { color: currentThemeColors.text }]}
+                style={[styles.input, { color: theme.text }]}
                 placeholder="Password"
-                placeholderTextColor={currentThemeColors.text + '99'}
+                placeholderTextColor={theme.text + "99"}
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!isPasswordVisible}
+                editable={!isLoading}
               />
-              <TouchableOpacity onPress={() => setIsPasswordVisible(!isPasswordVisible)} style={{ padding: 5 }}>
-                <Ionicons name={isPasswordVisible ? "eye-off-outline" : "eye-outline"} size={24} color={currentThemeColors.text + '99'} />
+              <TouchableOpacity
+                onPress={() => setIsPasswordVisible((v) => !v)}
+                style={{ padding: 5 }}
+                disabled={isLoading}
+              >
+                <Ionicons
+                  name={isPasswordVisible ? "eye-off-outline" : "eye-outline"}
+                  size={24}
+                  color={theme.text + "99"}
+                />
               </TouchableOpacity>
             </View>
-            <TouchableOpacity onPress={() => Alert.alert("Forgot Password", "Forgot password functionality to be implemented.")}>
-                <Text style={[styles.forgotPasswordText, { color: currentThemeColors.primary }]}>Forgot Password?</Text>
-            </TouchableOpacity>
-
 
             <TouchableOpacity
-              style={[styles.button, { backgroundColor: currentThemeColors.primary }]}
-              onPress={handleLogin}
+              onPress={() => Alert.alert("Forgot Password", "Coming soon!")}
+              disabled={isLoading}
+              style={{ alignSelf: "flex-end", marginBottom: 20 }}
             >
-              <Text style={[styles.buttonText, { color: currentThemeColors.background }]}>Login</Text>
+              <Text style={{ color: theme.primary, opacity: isLoading ? 0.7 : 1 }}>
+                Forgot Password?
+              </Text>
             </TouchableOpacity>
 
-            {/* Optional: Social Logins */}
-            <Text style={[styles.orText, {color: currentThemeColors.text+'AA'}]}>OR</Text>
-            <TouchableOpacity style={[styles.socialButton, {borderColor: currentThemeColors.text+'30'}]}>
-                <Ionicons name="logo-google" size={22} color={currentThemeColors.text} style={styles.socialIcon} />
-                <Text style={[styles.socialButtonText, {color: currentThemeColors.text}]}>Continue with Google</Text>
+            <TouchableOpacity
+              onPress={handleLogin}
+              disabled={isLoading}
+              style={[
+                styles.button,
+                { backgroundColor: theme.primary, opacity: isLoading ? 0.7 : 1 },
+              ]}
+            >
+              {isLoading ? (
+                <ActivityIndicator color={theme.background} />
+              ) : (
+                <Text style={[styles.buttonText, { color: theme.background }]}>Login</Text>
+              )}
             </TouchableOpacity>
-            {/* Add Apple login for iOS if desired */}
-
 
             <View style={styles.linkContainer}>
-              <Text style={[styles.linkText, { color: currentThemeColors.text + 'AA' }]}>Don't have an account?</Text>
-              <Link href="./signup" asChild>
-                <TouchableOpacity>
-                  <Text style={[styles.linkActionText, { color: currentThemeColors.primary }]}>Sign Up</Text>
+              <Text style={[styles.linkText, { color: theme.text + "AA" }]}>
+                Don't have an account?
+              </Text>
+              <Link href="/(auth)/signup" asChild>
+                <TouchableOpacity disabled={isLoading}>
+                  <Text style={[styles.linkActionText, { color: theme.primary, opacity: isLoading ? 0.7 : 1 }]}>
+                    Sign Up
+                  </Text>
                 </TouchableOpacity>
               </Link>
             </View>

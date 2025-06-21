@@ -1,34 +1,30 @@
-// src/controllers/authController.ts
+// backend/src/controllers/authController.ts
 import { Request, Response, NextFunction } from 'express';
+import admin from 'firebase-admin';
 import User, { IUser } from '../models/User';
 
 export const syncUser = async (
   req: Request,
-  res: Response,
+  res: Response<{ message: string; user: IUser }>,
   next: NextFunction
-): Promise<void> => {
-  // Because we have a global augmentation, TypeScript knows “req.user” exists.
-  if (!req.user || !req.user.uid) {
-    res.status(401).json({ message: 'Not authorized, user data missing from token' });
-    return;
-  }
-
-  const { uid, email, name } = req.user; // NO TYPE ERROR anymore
-
+) => {
   try {
-    let user: IUser | null = await User.findOne({ firebaseUID: uid });
-    if (user) {
-      res.status(200).json({ user });
-      return;
-    } else {
-      const newUser = new User({ firebaseUID: uid, email: email, name: name || '' });
-      await newUser.save();
-      res.status(201).json({ user: newUser });
-      return;
-    }
-  } catch (error) {
-    console.error('Error in syncUser controller:', error);
-    next(error);
-    return;
+    // verify Firebase ID token
+    const token = req.headers.authorization?.split(' ')[1]!;
+    const decoded = await admin.auth().verifyIdToken(token);
+    const firebaseUID = decoded.uid;
+    const email = decoded.email || '';
+    const name = decoded.name || '';
+
+    // upsert into the **users** collection
+    const user = await User.findOneAndUpdate(
+      { firebaseUID },
+      { firebaseUID, email, name },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
+
+    res.json({ message: 'User synced', user });
+  } catch (err) {
+    next(err);
   }
 };

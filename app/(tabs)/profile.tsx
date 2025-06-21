@@ -1,215 +1,139 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View,
-  Text,
   SafeAreaView,
   ScrollView,
   Image,
   TouchableOpacity,
-  TextInput,
+  Text,
+  ActivityIndicator,
   Alert,
   Platform,
-  StyleSheet, // Ensure StyleSheet is imported if styles are defined here
+  TextInput,
+  View,
 } from 'react-native';
-import { Stack, useRouter } from 'expo-router'; // useRouter is already here
+import { Stack, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import { signOut, updateProfile, updateEmail } from 'firebase/auth';
+import { FIREBASE_AUTH } from '../../constants/firebaseConfig';
 
+import { useAuth } from '../../context/AuthContext';
 import { Colors } from '../../constants/Colors';
 import { useColorScheme } from '../../hooks/useColorScheme';
-import { UserProfile } from '../../constants/Types';
-import { mockUserProfile /*, updateMockUserProfile */ } from '../../constants/Data'; // updateMockUserProfile might be used differently
 import ThemedView from '../../components/ThemedView';
 import ThemedText from '../../components/ThemedText';
-import { styles } from './profile.styles'
-// Assuming profile.styles.ts is in the same directory or you define styles here
-// If it's separate: import { styles } from './profile.styles';
+import { styles } from './profile.styles';
 
-// Helper component for editable fields (keep this as it was)
 interface EditableFieldProps {
   label: string;
-  value: string | undefined;
-  onSave: (newValue: string) => void;
+  value?: string;
+  onSave: (v: string) => Promise<void>;
   placeholder?: string;
-  keyboardType?: 'default' | 'email-address' | 'numeric' | 'phone-pad';
+  keyboardType?: any;
   multiline?: boolean;
   themeColors: typeof Colors.light | typeof Colors.dark;
 }
 
 const EditableField: React.FC<EditableFieldProps> = ({
-  label,
-  value,
-  onSave,
-  placeholder,
-  keyboardType = 'default',
-  multiline = false,
-  themeColors,
+  label, value, onSave, placeholder, keyboardType, multiline, themeColors
 }) => {
-  const [isEditing, setIsEditing] = useState(false);
-  const [currentValue, setCurrentValue] = useState(value || '');
-
-  useEffect(() => {
-    setCurrentValue(value || '');
-  }, [value]);
-
-  const handleSave = () => {
-    onSave(currentValue);
-    setIsEditing(false);
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(value||'');
+  const [saving, setSaving] = useState(false);
+  useEffect(()=>{ setVal(value||''); },[value]);
+  const save = async ()=>{
+    setSaving(true);
+    try{ await onSave(val); setEditing(false); }
+    catch(e:any){ Alert.alert('Update failed',e.message); }
+    finally{ setSaving(false); }
   };
-
   return (
-    <View style={[styles.infoItem, isEditing && styles.infoItemEditable]}>
-      <View style={{ flex: 1 }}>
-        <ThemedText style={[styles.label, { color: themeColors.text + '99' }]}>{label}</ThemedText>
-        {isEditing ? (
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+    <View style={[styles.infoItem, editing&&styles.infoItemEditable]}>
+      <View style={{flex:1}}>
+        <ThemedText style={[styles.label,{color:themeColors.text+'99'}]}>{label}</ThemedText>
+        {editing?
+          <View style={{flexDirection:'row',alignItems:'center'}}>
             <TextInput
-              style={[
-                styles.textInput,
-                multiline && styles.bioInput,
-                { color: themeColors.text, borderBottomColor: themeColors.primary },
-              ]}
-              value={currentValue}
-              onChangeText={setCurrentValue}
-              placeholder={placeholder || `Enter ${label.toLowerCase()}`}
-              placeholderTextColor={themeColors.text + '70'}
+              style={[styles.textInput, multiline&&styles.bioInput, {borderBottomColor:themeColors.primary,color:themeColors.text}]}
+              value={val}
+              onChangeText={setVal}
+              placeholder={placeholder||''}
+              placeholderTextColor={themeColors.text+'70'}
               keyboardType={keyboardType}
               multiline={multiline}
               autoFocus
+              editable={!saving}
             />
-            <TouchableOpacity onPress={handleSave} style={styles.saveButtonContainer}>
-              <View style={[styles.saveButton, { backgroundColor: themeColors.primary }]}>
-                <Text style={[styles.saveButtonText, { color: themeColors.background }]}>Save</Text>
+            <TouchableOpacity onPress={save} disabled={saving} style={styles.saveButtonContainer}>
+              <View style={[styles.saveButton,{backgroundColor:saving?themeColors.tabIconDefault:themeColors.primary}]}>  
+                <Text style={[styles.saveButtonText,{color:themeColors.background}]}>{saving?'Saving...':'Save'}</Text>
               </View>
             </TouchableOpacity>
           </View>
-        ) : (
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <ThemedText style={[styles.valueText, { color: themeColors.text }]}>
-              {value || `No ${label.toLowerCase()} set`}
-            </ThemedText>
-            <TouchableOpacity onPress={() => setIsEditing(true)} style={styles.editIconTouchable}>
-              <Ionicons name="pencil-outline" size={20} color={themeColors.primary} />
+        :
+          <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center'}}>
+            <ThemedText style={[styles.valueText,{color:themeColors.text}]}>{value||''}</ThemedText>
+            <TouchableOpacity onPress={()=>setEditing(true)} style={styles.editIconTouchable}>
+              <Ionicons name="pencil-outline" size={20} color={themeColors.primary}/>
             </TouchableOpacity>
           </View>
-        )}
+        }
       </View>
     </View>
   );
 };
 
-
 export default function ProfileScreen() {
-  const router = useRouter(); // useRouter is already imported
-  const colorScheme = useColorScheme() || 'light';
-  const currentThemeColors = Colors[colorScheme];
+  const router = useRouter();
+  const theme = Colors[useColorScheme()||'light'];
+  const { firebaseUser, mongoUser, isLoading } = useAuth();
+  const [uri, setUri] = useState<string|undefined>(mongoUser?.photoURL||firebaseUser?.photoURL);
+  useEffect(()=>{ setUri(mongoUser?.photoURL||firebaseUser?.photoURL); },[mongoUser,firebaseUser]);
 
-  const [userProfile, setUserProfile] = useState<UserProfile>(mockUserProfile);
-  const [profileImageUri, setProfileImageUri] = useState<string | undefined>(mockUserProfile.profileImageUrl);
-
-
-  const handleProfileUpdate = (field: keyof UserProfile, newValue: string) => {
-    setUserProfile(prev => {
-      const updatedProfile = { ...prev, [field]: newValue };
-      console.log(`Updating ${field} to:`, newValue);
-      // In a real app, call API to update backend
-      // updateMockUserProfile({ [field]: newValue }); // Example if you had a central mock update
-      return updatedProfile;
-    });
-  };
-
-  const pickImageAsync = async () => {
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (permissionResult.granted === false) {
-      Alert.alert("Permission Denied", "Access to photos is needed to update your profile picture.");
-      return;
-    }
-    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.5,
-    });
-    if (!result.canceled && result.assets && result.assets.length > 0) {
-      const newUri = result.assets[0].uri;
-      setProfileImageUri(newUri);
-      setUserProfile(prev => ({...prev, profileImageUrl: newUri}));
+  const pickAsync = async ()=>{
+    const {status} = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if(status!=='granted'){ Alert.alert('Permission Denied');return; }
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing:true, aspect:[1,1], quality:0.5 });
+    if(!res.canceled && res.assets.length>0 && firebaseUser) {
+      const newUri=res.assets[0].uri; setUri(newUri);
+      try{ await updateProfile(firebaseUser,{photoURL:newUri}); Alert.alert('Updated'); }
+      catch{ Alert.alert('Cannot update'); setUri(mongoUser?.photoURL||firebaseUser.photoURL); }
     }
   };
 
-  // --- NEW LOGOUT HANDLER ---
-  const handleLogout = () => {
-    // In a real app, you would clear any stored tokens, user data, etc.
-    console.log("User logging out...");
-    // Navigate to the login screen, replacing the current history stack
-    // so the user can't go back to the profile page.
-    router.replace('/(auth)/login');
-  };
-  // --- END OF NEW LOGOUT HANDLER ---
+  const logout = async ()=>{ try{ await signOut(FIREBASE_AUTH); router.replace('/(auth)/login'); }catch{ Alert.alert('Logout failed'); }};
 
+  if(isLoading) return <ActivityIndicator style={{flex:1}} size="large" color={theme.primary}/>
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: currentThemeColors.background }]}>
-      <Stack.Screen
-        options={{
-          title: 'My Profile',
-          headerTintColor: currentThemeColors.primary,
-          headerStyle:{backgroundColor: currentThemeColors.background},
-          headerShadowVisible: Platform.OS === 'ios',
-          //borderBottomWidth: Platform.OS === 'android' ? StyleSheet.hairlineWidth : 0,
-          //borderBottomColor: currentThemeColors.text + '20',
-        }}
-      />
+    <SafeAreaView style={[styles.safeArea,{backgroundColor:theme.background}]}>  
+      <Stack.Screen options={{ title:'My Profile', headerStyle:{backgroundColor:theme.background}, headerTitleStyle:{color:theme.text}, headerShadowVisible:Platform.OS==='ios' }}/>
       <ThemedView style={styles.container}>
-        <ScrollView
-          style={styles.scrollContainer}
-          contentContainerStyle={styles.scrollContentContainer}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Profile Header Section (Image, Name, Email) */}
-          <View style={[styles.headerSection, { backgroundColor: currentThemeColors.background }]}>
-            <TouchableOpacity onPress={pickImageAsync}>
-              <Image
-                source={profileImageUri ? { uri: profileImageUri } : require('../../assets/images/avatar.jpg')} // Using avatar.jpg as default
-                style={[styles.profileImage, { borderColor: currentThemeColors.primary }]}
-              />
-              <View style={{position: 'absolute', bottom: 10, right: 5, backgroundColor: currentThemeColors.background, borderRadius: 15, padding:5, elevation: 2, shadowColor: '#000', shadowOffset: {width:0, height:1}, shadowOpacity:0.2, shadowRadius:1}}>
-                 <Ionicons name="camera-outline" size={20} color={currentThemeColors.primary} />
-              </View>
-            </TouchableOpacity>
-            <ThemedText style={[styles.userName, { color: currentThemeColors.text }]}>{userProfile.name}</ThemedText>
-            <ThemedText style={[styles.userEmail, { color: currentThemeColors.text + 'AA' }]}>{userProfile.email}</ThemedText>
-          </View>
+        <ScrollView contentContainerStyle={styles.scrollContentContainer} showsVerticalScrollIndicator={false}>
+          <TouchableOpacity onPress={pickAsync} style={styles.avatarContainer}>
+            <Image
+              source={uri?{uri}:require('../../assets/images/avatar.jpg')}
+              style={[styles.profileImage,{borderColor:theme.primary}]}
+            />
+            <View style={styles.cameraIconOverlay}>
+              <Ionicons name="camera-outline" size={20} color={theme.primary}/>
+            </View>
+          </TouchableOpacity>
 
-          {/* Editable Info Section */}
+          <ThemedText style={[styles.userName,{color:theme.text}]}> {mongoUser?.name||firebaseUser?.displayName||''} </ThemedText>
+          <ThemedText style={[styles.userEmail,{color:theme.text+'AA'}]}> {mongoUser?.email||firebaseUser?.email||''} </ThemedText>
+
           <View style={styles.infoSection}>
-            <EditableField label="Full Name" value={userProfile.name} onSave={(newValue) => handleProfileUpdate('name', newValue)} themeColors={currentThemeColors}/>
-            <EditableField label="Email Address" value={userProfile.email} onSave={(newValue) => handleProfileUpdate('email', newValue)} keyboardType="email-address" themeColors={currentThemeColors}/>
-            <EditableField label="Phone Number" value={userProfile.phone} onSave={(newValue) => handleProfileUpdate('phone', newValue)} keyboardType="phone-pad" placeholder="Add phone number" themeColors={currentThemeColors}/>
-            <EditableField label="Bio" value={userProfile.bio} onSave={(newValue) => handleProfileUpdate('bio', newValue)} multiline placeholder="Tell us about yourself" themeColors={currentThemeColors}/>
+            <EditableField label="Full Name" value={mongoUser?.name||firebaseUser?.displayName} onSave={(v)=>updateProfile(firebaseUser!,{displayName:v})} themeColors={theme}/>
+            <EditableField label="Email" value={mongoUser?.email||firebaseUser?.email} onSave={(v)=>updateEmail(firebaseUser!,v)} keyboardType="email-address" themeColors={theme}/>
           </View>
 
-          {/* Actions Section */}
           <View style={styles.actionsSection}>
-            <TouchableOpacity style={[styles.actionButton, {borderBottomColor: currentThemeColors.text + '20'}]}>
-                <Ionicons name="settings-outline" size={22} color={currentThemeColors.primary} />
-                <ThemedText style={[styles.actionButtonText, {color: currentThemeColors.text}]}>Account Settings</ThemedText>
+            <TouchableOpacity style={styles.logoutButton} onPress={logout}>
+              <Ionicons name="log-out-outline" size={22} color={theme.accent}/>
+              <Text style={[styles.logoutText,{color:theme.accent}]}>Logout</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.actionButton, {borderBottomColor: currentThemeColors.text + '20'}]}>
-                <Ionicons name="help-circle-outline" size={22} color={currentThemeColors.primary} />
-                <ThemedText style={[styles.actionButtonText, {color: currentThemeColors.text}]}>Help & Support</ThemedText>
-            </TouchableOpacity>
-            {/* --- UPDATED LOGOUT BUTTON --- */}
-            <TouchableOpacity
-              style={[styles.actionButton, {borderBottomColor: currentThemeColors.text + '20'}]}
-              onPress={handleLogout} // Added onPress handler
-            >
-                <Ionicons name="log-out-outline" size={22} color={Colors.light.accent} /> {/* Or use a themed color: currentThemeColors.accent or a specific error/logout color */}
-                <ThemedText style={[styles.actionButtonText, {color: Colors.light.accent}]}>Logout</ThemedText>
-            </TouchableOpacity>
-            {/* --- END OF UPDATED LOGOUT BUTTON --- */}
           </View>
-
         </ScrollView>
       </ThemedView>
     </SafeAreaView>

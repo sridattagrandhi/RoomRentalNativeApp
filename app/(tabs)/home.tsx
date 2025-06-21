@@ -18,7 +18,7 @@ import ThemedText from '../../components/ThemedText'; // Assuming this is styled
 import { Colors } from '../../constants/Colors';
 import { useColorScheme } from '../../hooks/useColorScheme'; // If you want theme-aware elements
 
-import { styles } from './index.styles'; // We'll imagine new styles here
+import { styles } from './home.styles'; // We'll imagine new styles here
 
 export default function HomeScreen() {
   const router = useRouter();

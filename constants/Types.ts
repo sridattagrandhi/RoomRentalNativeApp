@@ -1,11 +1,12 @@
 // constants/Types.ts
 export interface Listing {
-  id: string;
+  id: string; // This will map to MongoDB's _id
+  _id?: string; // Mongoose might return _id, good to have both
   title: string;
   city: string;
   locality: string;
   rent: number;
-  type: string; // e.g., "Apartment", "House", "PG"
+  type: string;
   bedrooms: number;
   bathrooms: number;
   areaSqFt?: number;
@@ -14,9 +15,11 @@ export interface Listing {
   amenities?: string[];
   description: string;
   additionalInfo?: string;
-  image: string;           // Primary image for cards/thumbnails
-  imageUris?: string[];     // Array of all image URIs for the detail page
-  ownerId: string;
+  image: string;
+  imageUris?: string[];
+  // CORRECTED: The owner field can be a simple string (the ID) or a populated UserProfile object
+  owner: string | UserProfile;
+  ownerId?: string; // Keep ownerId as it might be used elsewhere before population
   isAvailable?: boolean;
   postedDate?: string;
 }
@@ -30,13 +33,12 @@ export interface Message {
 }
 
 export interface UserProfile {
-  id: string;
+  _id?: string; // MongoDB's document ID
+  id?: string; // Mongoose might also provide 'id' as a virtual
+  firebaseUID?: string; // The user's unique ID from Firebase Authentication
   name: string;
   email: string;
-  phone?: string; // Optional
-  bio?: string;   // Optional
-  profileImageUrl?: string; // Optional
-  // Add other fields as needed, e.g., dateOfBirth, address, etc.
+  profileImageUrl?: string;
 }
 
 export interface ChatListItem {

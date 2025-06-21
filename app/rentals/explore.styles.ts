@@ -1,36 +1,103 @@
-import { StyleSheet, Platform } from 'react-native';
-import { Colors } from '../../constants/Colors';
+// app/rental/explore.styles.ts
+import { StyleSheet } from 'react-native';
 
 export const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
-  container: {
+  container: { // For ThemedView
     flex: 1,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0', // A light border color
-    backgroundColor: Colors.background,
-  },
-  backButton: {
-    padding: 5, // Make touch target larger
-    marginRight: 15,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: Colors.text,
-  },
+  // Main list styling
   listContentContainer: {
     paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingVertical: 12,
   },
+  
+  // Styles for each listing card
+  cardContainer: {
+    marginBottom: 20,
+    borderRadius: 12,
+    // iOS shadow
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    // Android shadow
+    elevation: 3,
+  },
+  cardImage: {
+    width: '100%',
+    height: 220, // Taller images
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+  },
+  cardContent: {
+    padding: 14,
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: '600', // Bolder title
+    marginBottom: 6,
+  },
+  locationContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  locationText: {
+    fontSize: 14,
+    marginLeft: 4,
+  },
+  detailsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingTop: 8,
+    // borderTopWidth will be themed
+  },
+  detailItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 16, // Space between details
+  },
+  detailText: {
+    fontSize: 14,
+    marginLeft: 4,
+    fontWeight: '500',
+  },
+  rentContainer: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    // backgroundColor will be a semi-transparent theme color
+  },
+  rentText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    // color will be themed (e.g., white)
+  },
+
+  // Styles for the FAB (Floating Action Button)
+  fab: {
+    position: 'absolute',
+    right: 25,
+    bottom: 25,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 4,
+  },
+  fabIcon: {
+    fontSize: 30,
+  },
+
+  // Styles for the empty state
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -38,28 +105,8 @@ export const styles = StyleSheet.create({
     padding: 20,
   },
   emptyText: {
-    fontSize: 16,
-    color: Colors.text, // Or a muted version of text color
+    fontSize: 17,
     textAlign: 'center',
-  },
-  fab: {
-    position: 'absolute',
-    right: 20,
-    bottom: 20,
-    backgroundColor: Colors.primary, // Or Colors.accent
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 4, // Android shadow
-    shadowColor: '#000', // iOS shadow
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
-  },
-  fabIcon: {
-    fontSize: 30,
-    color: Colors.background, // White icon on primary background
+    marginTop: 10,
   },
 });

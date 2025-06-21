@@ -1,12 +1,11 @@
-import express, { Router } from 'express';
-import { syncUser } from '../controllers/authController'; 
-import { protect } from '../middleware/authMiddleware'; // Your existing auth middleware
+// backend/src/routes/authRoutes.ts
+import express from 'express';
+import { protect } from '../middleware/authMiddleware';
+import { syncUser } from '../controllers/authController';
 
-const router: Router = express.Router();
+const router = express.Router();
 
-// @route   POST /api/auth/sync-user
-// @desc    Syncs Firebase user with local DB (creates if not exists, or gets existing)
-// @access  Private (requires Firebase ID token)
+// POST /api/auth/sync-user  →  upsert the Firebase user into MongoDB
 router.post('/sync-user', protect, syncUser);
 
 export default router;

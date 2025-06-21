@@ -1,12 +1,30 @@
 // app/index.tsx
 import { Redirect } from 'expo-router';
 import React from 'react';
+import { ActivityIndicator, View } from 'react-native';
+
+import { useAuth } from '../context/AuthContext';
+import { Colors } from '../constants/Colors'; // For spinner color
 
 export default function IndexScreen() {
-  // For now, we always redirect to the login screen.
-  // In a real app with authentication, you would check here:
-  // - If the user is logged in, redirect to '/(tabs)/' or your main app screen.
-  // - If the user is NOT logged in, redirect to '/(auth)/login'.
+  const { user, isLoading } = useAuth();
 
-  return <Redirect href="/(auth)/login" />;
+  if (isLoading) {
+    // Show a loading spinner while checking auth state
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color={Colors.light.primary} />
+      </View>
+    );
+  }
+
+  if (user) {
+    // If user is logged in, redirect to the main app (tabs)
+    console.log("Redirecting to (tabs)...");
+    return <Redirect href="./(tabs)/" />;
+  } else {
+    // If user is not logged in, redirect to the login screen
+    console.log("Redirecting to login...");
+    return <Redirect href="/(auth)/login" />;
+  }
 }

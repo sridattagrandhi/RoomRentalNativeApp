@@ -1,3 +1,4 @@
+// app/(tabs)/myListings.tsx
 import React, { useState, useCallback } from 'react';
 import {
   View,
@@ -7,148 +8,138 @@ import {
   Image,
   TouchableOpacity,
   RefreshControl,
-  StyleSheet, // For Platform check
+  ActivityIndicator,
+  Alert,
   Platform,
-  ScrollView,
 } from 'react-native';
 import { Stack, useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
+import { useAuth } from '../../context/AuthContext';
 import { Colors } from '../../constants/Colors';
 import { useColorScheme } from '../../hooks/useColorScheme';
 import { Listing } from '../../constants/Types';
-import { getMyMockListings } from '../../constants/Data';
-import ThemedView from '../../components/ThemedView';
-import ThemedText from '../../components/ThemedText';
-import { styles } from './myListings.styles'; // Import specific styles
 
-interface MyListingCardProps {
-  listing: Listing;
-  onPress: () => void;
-  onEdit: () => void;
-  themeColors: typeof Colors.light; // Pass theme for styling
-}
-
-const MyListingCard: React.FC<MyListingCardProps> = ({ listing, onPress, onEdit, themeColors }) => {
-  return (
-    <TouchableOpacity onPress={onPress} style={[styles.myListingCard, { backgroundColor: themeColors.background }]}>
-      <View style={styles.cardContent}>
-        <Image
-          source={listing.image ? { uri: listing.image } : require('../../assets/images/avatar.jpg')} // Fallback image
-          style={styles.cardImage}
-        />
-        <View style={styles.infoContainer}>
-          <View>
-            <ThemedText style={[styles.title, { color: themeColors.text }]} numberOfLines={2}>
-              {listing.title}
-            </ThemedText>
-            <ThemedText style={[styles.details, { color: themeColors.text + '99' }]}>
-              {listing.locality}, {listing.city}
-            </ThemedText>
-            <ThemedText style={[styles.rent, { color: themeColors.primary }]}>
-              ₹{listing.rent.toLocaleString()}/month
-            </ThemedText>
-          </View>
-          <View style={styles.actionsContainer}>
-            <TouchableOpacity
-              style={[styles.editButton, { backgroundColor: themeColors.primary + '20' }]}
-              onPress={(e) => { e.stopPropagation(); onEdit(); }} // Stop propagation to prevent card press
-            >
-              <Ionicons name="pencil-outline" size={16} color={themeColors.primary} />
-              <Text style={[styles.editButtonText, { color: themeColors.primary }]}>Edit</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-};
+const BASE_URL =
+  Platform.OS === 'android'
+    ? 'http://10.0.2.2:5001'
+    : 'http://localhost:5001';
 
 export default function MyListingsScreen() {
   const router = useRouter();
-  const colorScheme = useColorScheme() || 'light';
-  const currentThemeColors = Colors[colorScheme];
+  const { firebaseUser } = useAuth();
+  const theme = Colors[useColorScheme() || 'light'];
 
-  const [myListings, setMyListings] = useState<Listing[]>([]);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const loadMyListings = useCallback(() => {
-    setIsRefreshing(true);
-    setTimeout(() => { // Simulate fetch
-      setMyListings(getMyMockListings());
-      setIsRefreshing(false);
-    }, 300);
-  }, []);
+  const load = useCallback(
+    async (refresh = false) => {
+      if (!firebaseUser) {
+        setListings([]);
+        setLoading(false);
+        return;
+      }
+      if (!refresh) setLoading(true);
+
+      try {
+        const token = await firebaseUser.getIdToken();
+        const res = await fetch(`${BASE_URL}/api/listings/my-listings`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error(`Server error ${res.status}`);
+
+        // parse JSON and normalize id
+        const data: Array<Listing & { _id?: string }> = await res.json();
+        const normalized: Listing[] = data.map(l => ({
+          ...l,
+          id: l.id ?? l._id ?? '',
+        }));
+        setListings(normalized);
+      } catch (err: any) {
+        console.error('Fetch my listings failed:', err);
+        Alert.alert('Error', 'Could not load your listings.');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [firebaseUser]
+  );
 
   useFocusEffect(
     useCallback(() => {
-      loadMyListings();
-    }, [loadMyListings])
+      load(false);
+    }, [load])
   );
 
-  const handleEditListing = (listingId: string) => {
-    router.push({
-      pathname: '../rental/post-room', // Navigate to your existing form screen
-      params: { listingId: listingId, editMode: 'true' }, // Pass listingId and editMode flag
-    });
-  };
-
-  const handleViewListingDetail = (listingId: string) => {
-    router.push(`/listings/${listingId}`);
-  };
+  if (loading) {
+    return (
+      <SafeAreaView style={{ flex: 1, justifyContent: 'center', backgroundColor: theme.background }}>
+        <ActivityIndicator size="large" color={theme.primary} />
+      </SafeAreaView>
+    );
+  }
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: currentThemeColors.background }]}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
       <Stack.Screen
         options={{
           title: 'My Listings',
-          headerLargeTitle: true,
-          headerStyle: { backgroundColor: currentThemeColors.background },
-          headerTitleStyle: { color: currentThemeColors.text },
-          headerShadowVisible: false,
-          //borderBottomWidth: Platform.OS === 'android' ? StyleSheet.hairlineWidth : 0,
-          //borderBottomColor: currentThemeColors.text + '20',
+          headerStyle: { backgroundColor: theme.background },
+          headerTitleStyle: { color: theme.text },
+          headerRight: () => (
+            <TouchableOpacity onPress={() => router.push('/rentals/post-room')} style={{ marginRight: 15 }}>
+              <Ionicons name="add-circle-outline" size={26} color={theme.primary} />
+            </TouchableOpacity>
+          ),
         }}
       />
-      <ThemedView style={styles.container}>
-        {myListings.length > 0 ? (
-          <FlatList
-            data={myListings}
-            renderItem={({ item }) => (
-              <MyListingCard
-                listing={item}
-                onPress={() => handleViewListingDetail(item.id)}
-                onEdit={() => handleEditListing(item.id)}
-                themeColors={currentThemeColors}
-              />
-            )}
-            keyExtractor={(item) => item.id}
-            style={styles.listContainer}
-            contentContainerStyle={styles.listContentContainer}
-            refreshControl={
-              <RefreshControl refreshing={isRefreshing} onRefresh={loadMyListings} tintColor={currentThemeColors.primary} />
-            }
-          />
-        ) : (
-          <ScrollView
-            contentContainerStyle={styles.emptyContainer}
-            refreshControl={
-              <RefreshControl refreshing={isRefreshing} onRefresh={loadMyListings} tintColor={currentThemeColors.primary} />
-            }
+
+      <FlatList
+        data={listings}
+        keyExtractor={item => item.id}
+        refreshControl={
+          <RefreshControl refreshing={loading} onRefresh={() => load(true)} tintColor={theme.primary} />
+        }
+        renderItem={({ item }) => (
+          <TouchableOpacity
+            style={{
+              margin: 10,
+              backgroundColor: theme.background,
+              borderRadius: 8,
+              padding: 10,
+              shadowColor: '#000',
+              shadowOpacity: 0.1,
+            }}
+            onPress={() => router.push(`/listings/${item.id}`)}
           >
-            <Ionicons name="file-tray-stacked-outline" size={60} color={currentThemeColors.text + '70'} />
-            <ThemedText style={[styles.emptyText, { color: currentThemeColors.text + 'AA' }]}>
-              You haven't posted any listings yet.
-            </ThemedText>
+            <Image
+              source={{ uri: item.image }}
+              style={{ width: '100%', height: 150, borderRadius: 8 }}
+            />
+            <Text style={{ marginTop: 8, color: theme.text, fontSize: 16, fontWeight: '600' }}>
+              {item.title}
+            </Text>
+            <Text style={{ color: theme.text + '99' }}>
+              {item.locality}, {item.city}
+            </Text>
+            <Text style={{ color: theme.primary, marginTop: 4 }}>
+              ₹{item.rent.toLocaleString()}/mo
+            </Text>
             <TouchableOpacity
-              style={[styles.postButton, { backgroundColor: currentThemeColors.primary }]}
-              onPress={() => router.push('../rental/post-room')} // Navigate to post room screen
+              onPress={() =>
+                router.push({
+                  pathname: '/rentals/post-room',
+                  params: { listingId: item.id, editMode: 'true' },
+                })
+              }
+              style={{ position: 'absolute', top: 10, right: 10 }}
             >
-              <Text style={[styles.postButtonText, { color: currentThemeColors.background }]}>Post Your First Listing</Text>
+              <Ionicons name="pencil-outline" size={24} color={theme.primary} />
             </TouchableOpacity>
-          </ScrollView>
+          </TouchableOpacity>
         )}
-      </ThemedView>
+      />
     </SafeAreaView>
   );
 }
