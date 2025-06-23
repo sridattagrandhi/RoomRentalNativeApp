@@ -141,3 +141,54 @@ export const updateListing = async (
     next(err);
   }
 };
+
+export const deleteListing = async (
+  req: Request & { user?: { uid:string }},
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    // 1) Ensure authenticated
+    const firebaseUid = req.user?.uid;
+    if (!firebaseUid) {
+      res.status(401).json({ message: 'Not authorized' });
+      return;
+    }
+
+    // 2) Lookup our app user
+    const user = await User.findOne({ firebaseUID: firebaseUid });
+    if (!user) {
+      res.status(404).json({ message: 'User not found' });
+      return;
+    }
+
+    // 3) Validate listingId param
+    const { id } = req.params;
+    if (!Types.ObjectId.isValid(id)) {
+      res.status(400).json({ message: 'Invalid listing ID' });
+      return;
+    }
+
+    // 4) Fetch the listing
+    const listing = await Listing.findById(id);
+    if (!listing) {
+      res.status(404).json({ message: 'Listing not found' });
+      return;
+    }
+
+    // 5) Ownership check
+    if (listing.owner.toString() !== user.id) {
+      res.status(403).json({ message: 'You can only delete your own listings.' });
+      return;
+    }
+
+    // 6) Delete it
+    await listing.deleteOne();
+
+    // 7) Return success
+    res.status(204).end();
+  } catch (err) {
+    console.error('Failed to delete listing:', err);
+    next(err);
+  }
+};
