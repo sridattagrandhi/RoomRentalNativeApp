@@ -21,9 +21,7 @@ import { useColorScheme } from '../../hooks/useColorScheme';
 import { Listing } from '../../constants/Types';
 
 const BASE_URL =
-  Platform.OS === 'android'
-    ? 'http://10.0.2.2:5001'
-    : 'http://localhost:5001';
+  Platform.OS === 'android' ? 'http://10.0.2.2:5001' : 'http://localhost:5001';
 
 export default function MyListingsScreen() {
   const router = useRouter();
@@ -49,7 +47,6 @@ export default function MyListingsScreen() {
         });
         if (!res.ok) throw new Error(`Server error ${res.status}`);
 
-        // parse JSON and normalize id
         const data: Array<Listing & { _id?: string }> = await res.json();
         const normalized: Listing[] = data.map(l => ({
           ...l,
@@ -74,7 +71,9 @@ export default function MyListingsScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={{ flex: 1, justifyContent: 'center', backgroundColor: theme.background }}>
+      <SafeAreaView
+        style={{ flex: 1, justifyContent: 'center', backgroundColor: theme.background }}
+      >
         <ActivityIndicator size="large" color={theme.primary} />
       </SafeAreaView>
     );
@@ -88,7 +87,10 @@ export default function MyListingsScreen() {
           headerStyle: { backgroundColor: theme.background },
           headerTitleStyle: { color: theme.text },
           headerRight: () => (
-            <TouchableOpacity onPress={() => router.push('/rentals/post-room')} style={{ marginRight: 15 }}>
+            <TouchableOpacity
+              onPress={() => router.push('/rentals/post-room')}
+              style={{ marginRight: 15 }}
+            >
               <Ionicons name="add-circle-outline" size={26} color={theme.primary} />
             </TouchableOpacity>
           ),
@@ -99,7 +101,11 @@ export default function MyListingsScreen() {
         data={listings}
         keyExtractor={item => item.id}
         refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={() => load(true)} tintColor={theme.primary} />
+          <RefreshControl
+            refreshing={loading}
+            onRefresh={() => load(true)}
+            tintColor={theme.primary}
+          />
         }
         renderItem={({ item }) => (
           <TouchableOpacity
@@ -111,13 +117,25 @@ export default function MyListingsScreen() {
               shadowColor: '#000',
               shadowOpacity: 0.1,
             }}
-            onPress={() => router.push(`/listings/${item.id}`)}
+            onPress={() =>
+              router.push({
+                pathname: '/listings/[listingId]',
+                params: { listingId: item.id, from: 'myListings' },
+              })
+            }
           >
             <Image
               source={{ uri: item.image }}
               style={{ width: '100%', height: 150, borderRadius: 8 }}
             />
-            <Text style={{ marginTop: 8, color: theme.text, fontSize: 16, fontWeight: '600' }}>
+            <Text
+              style={{
+                marginTop: 8,
+                color: theme.text,
+                fontSize: 16,
+                fontWeight: '600',
+              }}
+            >
               {item.title}
             </Text>
             <Text style={{ color: theme.text + '99' }}>
@@ -126,12 +144,11 @@ export default function MyListingsScreen() {
             <Text style={{ color: theme.primary, marginTop: 4 }}>
               ₹{item.rent.toLocaleString()}/mo
             </Text>
+
+            {/* ✏️ Edit button */}
             <TouchableOpacity
               onPress={() =>
-                router.push({
-                  pathname: '/rentals/post-room',
-                  params: { listingId: item.id, editMode: 'true' },
-                })
+                router.push(`/listings/${item.id}/edit`)
               }
               style={{ position: 'absolute', top: 10, right: 10 }}
             >
