@@ -211,7 +211,11 @@ export default function ListingView() {
               }
               router.push({
                 pathname: `/chat/[chatId]`,
-                params: { chatId: ownerId, recipientName: ownerObj.name },
+                params: {
+                  chatId:       ownerId,           // we’ll treat this as “no existing thread” on the backend
+                  otherUserId:  ownerId,           // key step—tells POST who we’re messaging
+                  recipientName: ownerObj.name,
+                },
               })
             }}
           >

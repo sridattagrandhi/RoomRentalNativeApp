@@ -1,75 +1,103 @@
+// backend/src/server.ts
 import express, { Express, Request, Response, NextFunction } from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import admin from 'firebase-admin';
+import http from 'http';
+import { Server as IOServer, Socket } from 'socket.io';
 
-// --- IMPORT YOUR ROUTE FILES ---
-import authRoutes from './routes/authRoutes'; // Make sure this line is present and path is correct
+import authRoutes from './routes/authRoutes';
 import listingRoutes from './routes/listingRoutes';
+import chatRoutes from './routes/chatRoutes';
+import User from './models/User';
 
-// Load environment variables from .env file
 dotenv.config();
 
 const app: Express = express();
-const PORT: string | number = process.env.PORT || 5001;
+const PORT = process.env.PORT || 5001;
 
-// --- Firebase Admin SDK Initialization ---
+// Firebase Admin initialization... (no changes here)
 try {
   if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
     admin.initializeApp({
       credential: admin.credential.cert(process.env.GOOGLE_APPLICATION_CREDENTIALS),
     });
-    console.log('Firebase Admin SDK initialized successfully.');
-  } else {
-    console.warn('Firebase Admin SDK not initialized. GOOGLE_APPLICATION_CREDENTIALS path not found in .env');
+    console.log('✅ Firebase Admin initialized');
   }
-} catch (error) {
-  console.error('Error initializing Firebase Admin SDK:', error);
+} catch (e) {
+  console.error('🔥 Admin init error:', e);
 }
 
-// --- Core Middleware ---
+
 app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
-// --- API Routes ---
-app.get('/api', (req: Request, res: Response) => {
-  res.status(200).json({ message: 'Welcome to Room Rental App Backend API!' });
+const httpServer = http.createServer(app);
+const io = new IOServer(httpServer, {
+  cors: { origin: '*', methods: ['GET', 'POST'] },
 });
 
-// --- THIS IS THE CRITICAL LINE TO USE YOUR AUTH ROUTES ---
-// This tells Express: "For any request that starts with /api/auth,
-// use the routes defined in the authRoutes file."
+// Middleware to attach io to each request
+app.use((req: Request, _res: Response, next: NextFunction) => {
+  (req as any).io = io;
+  next();
+});
+
 app.use('/api/auth', authRoutes);
 app.use('/api/listings', listingRoutes);
-// --- END OF CRITICAL LINE ---
+app.use('/api/chat', chatRoutes);
 
 
-// --- Global Error Handler (Example) ---
-app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
-  console.error(err.stack);
-  res.status(500).json({ message: 'Something went wrong!' });
+io.use(async (socket: Socket, next) => {
+  const token = socket.handshake.auth.token as string | undefined;
+  if (!token) {
+    return next(new Error('Authentication token missing'));
+  }
+  try {
+    const decoded = await admin.auth().verifyIdToken(token);
+    const user = await User.findOne({ firebaseUID: decoded.uid }).lean();
+    if (!user) {
+      return next(new Error('User not found in database'));
+    }
+    
+    socket.data.firebaseUID = decoded.uid;
+    socket.data.mongoUserId = user._id.toString();
+    next();
+  } catch (err) {
+    next(new Error('Unauthorized'));
+  }
 });
 
-// --- MongoDB Connection & Server Start ---
-const MONGO_URI = process.env.MONGO_URI;
+io.on('connection', (socket: Socket) => {
+  const { firebaseUID, mongoUserId } = socket.data;
+  console.log(`🟢 Socket connected: ${socket.id} (User: ${firebaseUID})`);
 
-if (!MONGO_URI) {
-  console.error('FATAL ERROR: MONGO_URI is not defined in the .env file.');
-  process.exit(1);
-}
+  // Each user joins a room for their own inbox updates
+  socket.join(`user-inbox-${mongoUserId}`);
 
-mongoose.connect(MONGO_URI)
-  .then(() => {
-    console.log('Successfully connected to MongoDB Atlas!');
-    app.listen(PORT, () => {
-      console.log(`Backend server is running on http://localhost:${PORT}`);
-    });
-  })
-  .catch(err => {
-    console.error('MongoDB connection error:', err.message);
-    process.exit(1);
+  socket.on('joinRoom', (chatId: string) => {
+    console.log(`User ${firebaseUID} joining chat room: ${chatId}`);
+    socket.join(chatId);
   });
 
-export default app;
+  socket.on('leaveRoom', (chatId: string) => {
+    console.log(`User ${firebaseUID} leaving chat room: ${chatId}`);
+    socket.leave(chatId);
+  });
+
+  socket.on('disconnect', () => {
+    console.log(`🔴 Socket disconnected: ${socket.id}`);
+    socket.leave(`user-inbox-${mongoUserId}`);
+  });
+});
+
+
+httpServer.listen(PORT, () => {
+  console.log(`🚀 Server listening on port ${PORT}`);
+});
+
+mongoose
+  .connect(process.env.MONGO_URI!)
+  .then(() => console.log('✅ Connected to MongoDB'))
+  .catch((err) => console.error('MongoDB connection error:', err));

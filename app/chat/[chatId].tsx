@@ -3,115 +3,304 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
-  TextInput,
   FlatList,
+  TextInput,
   TouchableOpacity,
-  StyleSheet,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
-  Keyboard,
+  StyleSheet,
+  Alert,
+  SafeAreaView,
+  ActivityIndicator,
 } from 'react-native';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+// Import Href alongside other expo-router hooks
+import { useLocalSearchParams, Stack, useRouter, Href } from 'expo-router';
+import io, { Socket } from 'socket.io-client';
 import { Ionicons } from '@expo/vector-icons';
+
+import { useAuth } from '../../context/AuthContext';
 import { Colors } from '../../constants/Colors';
 import { useColorScheme } from '../../hooks/useColorScheme';
 import { Message } from '../../constants/Types';
-import { mockChatMessages, addChatMessage, MOCK_CURRENT_USER_ID } from '../../constants/Data';
-import ThemedText from '../../components/ThemedText'; // If you want to use it for message text
+
+const PC_IP = '192.168.0.42';  // ← replace with your dev‐machine IP
+
+export const BASE_URL = Platform.select({
+  android: 'http://10.0.2.2:5001',
+  ios:    __DEV__ ? 'http://localhost:5001' : `http://${PC_IP}:5001`,
+  default:`http://${PC_IP}:5001`,
+});
 
 export default function ChatScreen() {
   const router = useRouter();
-  const { chatId, recipientName } = useLocalSearchParams<{ chatId?: string; recipientName?: string }>();
-  const colorScheme = useColorScheme() || 'light';
-  const currentThemeColors = Colors[colorScheme];
+  const {
+    chatId: initialChatId,
+    otherUserId,
+    recipientName,
+  } = useLocalSearchParams<{
+    chatId?: string;        // might be a real thread ID, or a placeholder = otherUserId
+    otherUserId: string;    // always the other person’s FirebaseUID or MongoID
+    recipientName?: string; // to show in the header
+  }>();
 
+  const { firebaseUser } = useAuth();
+  const theme = Colors[useColorScheme() || 'light'];
+
+  const [chatId, setChatId]     = useState<string|undefined>(initialChatId);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [inputText, setInputText] = useState('');
+  const [text, setText]         = useState('');
+  const [loading, setLoading]   = useState(true);
+  const [sending, setSending]   = useState(false);
+
+  const socketRef = useRef<Socket | null>(null);
   const flatListRef = useRef<FlatList<Message>>(null);
 
-  // Load messages for the current chat
+  const isPlaceholder = !!(chatId && chatId === otherUserId);
+
+  // --- MODIFICATION 1: This entire `useEffect` block is new ---
+  // This effect runs when the component loads with a placeholder ID.
+  // It checks the backend to see if a chat with this user already exists.
   useEffect(() => {
-    if (chatId) {
-      setMessages(mockChatMessages[chatId] || []);
-    }
-  }, [chatId]);
+    const findExistingChat = async () => {
+      if (isPlaceholder && firebaseUser) {
+        try {
+          const token = await firebaseUser.getIdToken();
+          const res = await fetch(`${BASE_URL}/api/chat/find/${otherUserId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
 
-  // Scroll to bottom when new messages are added or keyboard shows
+          if (res.ok) {
+            const existingChat = await res.json();
+            // Chat found: Redirect to the real chat URL.
+            // We use `as Href` to fix the TypeScript error with Typed Routes.
+            router.replace({
+              pathname: '/chat/[chatId]',
+              params: { 
+                chatId: existingChat._id, 
+                otherUserId, 
+                recipientName 
+              },
+            });
+          } else if (res.status === 404) {
+            // No chat exists. This is fine. Stop loading and show the empty screen.
+            setLoading(false);
+          } else {
+            throw new Error('Failed to check for existing chat');
+          }
+        } catch (err) {
+          console.error('Error finding existing chat:', err);
+          Alert.alert('Error', 'Could not initialize chat.');
+          setLoading(false);
+        }
+      }
+    };
+
+    findExistingChat();
+  }, [isPlaceholder, firebaseUser, otherUserId, recipientName, router]);
+
+
+  //
+  // 1) Load history only once we have a real chatId
+  //
+  const loadMessages = useCallback(async () => {
+    if (!chatId || isPlaceholder || !firebaseUser) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    try {
+      const token = await firebaseUser.getIdToken();
+      const res = await fetch(`${BASE_URL}/api/chat/${chatId}/messages`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data: Message[] = await res.json();
+      setMessages(data);
+    } catch (err) {
+      console.error('Load messages error:', err);
+      Alert.alert('Error', 'Could not load messages');
+    } finally {
+      setLoading(false);
+    }
+  }, [chatId, isPlaceholder, firebaseUser]);
+
   useEffect(() => {
-    if (messages.length > 0) {
-      flatListRef.current?.scrollToEnd({ animated: true });
+    // This effect now correctly waits for the "findExistingChat" effect to finish.
+    // If a chat is found, the component reloads with a real chatId.
+    // If not, `isPlaceholder` remains true, and `loadMessages` won't run.
+    loadMessages();
+  }, [chatId, loadMessages]);
+
+  //
+  // 2) Set up Socket.IO and join the proper room once we have a real chatId
+  //
+  useEffect(() => {
+    if (!firebaseUser) return;
+    let socket: Socket;
+
+    (async () => {
+      const token = await firebaseUser.getIdToken();
+      socket = io(BASE_URL, {
+        auth: { token },
+        transports: ['websocket'],
+      });
+      socketRef.current = socket;
+
+      socket.on('connect', () => {
+        console.log('Socket connected');
+        if (chatId && !isPlaceholder) {
+          socket.emit('joinRoom', chatId);
+        }
+      });
+
+      socket.on('message', (newMsg: Message) => {
+        if (isPlaceholder) {
+          // This logic now correctly fires only when creating a truly new chat.
+          // It updates the state and URL without a full reload.
+          router.setParams({ chatId: newMsg.chatId });
+          setChatId(newMsg.chatId);
+          socket.emit('joinRoom', newMsg.chatId);
+        }
+        setMessages(prev => {
+          if (prev.some(m => m._id === newMsg._id)) return prev;
+          return [...prev, newMsg];
+        });
+      });
+
+      socket.on('disconnect', () => {
+        console.log('Socket disconnected');
+      });
+    })();
+
+    return () => {
+      socketRef.current?.disconnect();
+      socketRef.current = null;
+    };
+  }, [firebaseUser, chatId, isPlaceholder, router]);
+
+
+  //
+  // 3) Send & upsert. On first send, pass chatId undefined so backend creates it.
+  //
+  const handleSend = async () => {
+    const trimmed = text.trim();
+    if (!trimmed || !firebaseUser || sending || !otherUserId) return;
+
+    setSending(true);
+    try {
+      const token = await firebaseUser.getIdToken();
+      const res = await fetch(`${BASE_URL}/api/chat/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type':  'application/json',
+          Authorization:   `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          text:        trimmed,
+          otherUserId,    // tells the server who to message
+          chatId:       isPlaceholder ? undefined : chatId,
+        }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+
+      // we clear the input—our socket listener will append the new message
+      setText('');
+    } catch (err) {
+      console.error('Send failed:', err);
+      Alert.alert('Error', 'Failed to send message');
+    } finally {
+      setSending(false);
     }
-  }, [messages]);
-
-
-  const handleSend = () => {
-    if (inputText.trim() === '' || !chatId) return;
-
-    const newMessage = addChatMessage(chatId, inputText, MOCK_CURRENT_USER_ID);
-    setMessages(prevMessages => [...prevMessages, newMessage]); // Update local state to show message immediately
-    setInputText('');
-    Keyboard.dismiss(); // Dismiss keyboard after sending
-    // In a real app, you'd send this to a backend
   };
 
-  const renderMessageItem = ({ item }: { item: Message }) => {
-    const isCurrentUser = item.senderId === MOCK_CURRENT_USER_ID;
+  //
+  // 4) Render each bubble
+  //
+  const renderItem = ({ item }: { item: Message }) => {
+    const isMe = item.sender._id === firebaseUser?.uid;
     return (
       <View
         style={[
-          styles.messageBubble,
-          isCurrentUser ? styles.currentUserBubble : styles.otherUserBubble,
-          isCurrentUser ? { backgroundColor: currentThemeColors.primary } : { backgroundColor: currentThemeColors.text + '20' },
+          styles.bubble,
+          isMe ? styles.myBubble : styles.theirBubble,
+          { backgroundColor: isMe ? theme.primary : theme.text + '15' },
         ]}
       >
-        <Text style={[styles.messageText, isCurrentUser ? { color: currentThemeColors.background } : { color: currentThemeColors.text }]}>
+        <Text style={[styles.bubbleText, { color: isMe ? '#fff' : theme.text }]}>
           {item.text}
         </Text>
-        <Text style={[styles.timestamp, isCurrentUser ? { color: currentThemeColors.background + 'AA' } : { color: currentThemeColors.text + '99' }]}>
-          {item.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        <Text style={[styles.timestamp, { color: isMe ? '#ffffff99' : theme.text + '80' }]}>
+          {new Date(item.timestamp).toLocaleTimeString([], {
+            hour:   '2-digit',
+            minute: '2-digit',
+          })}
         </Text>
       </View>
     );
   };
 
+  //
+  // 5) Component UI
+  //
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: currentThemeColors.background }]}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
       <Stack.Screen
         options={{
-          title: recipientName || `Chat with ${chatId || 'User'}`,
-          headerTintColor: currentThemeColors.primary,
-          headerStyle: { backgroundColor: currentThemeColors.background },
-          headerShadowVisible: Platform.OS === 'ios',
-          //borderBottomWidth: Platform.OS === 'android' ? StyleSheet.hairlineWidth : 0,
-          //borderBottomColor: currentThemeColors.text + '30',
+          title:             recipientName || 'Chat',
+          headerStyle:       { backgroundColor: theme.background },
+          headerTitleStyle:  { color: theme.text },
+          headerTintColor:   theme.text,
         }}
       />
+
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardAvoidingView}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0} // Adjust if header height changes
+        style={{ flex: 1 }}
+        behavior={
+          Platform.OS === 'ios'
+            ? 'padding'
+            : 'height'
+        }
+        keyboardVerticalOffset={90}
       >
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          renderItem={renderMessageItem}
-          keyExtractor={(item) => item.id}
-          style={styles.messagesList}
-          contentContainerStyle={styles.messagesListContent}
-          // inverted // Using scrollToEnd instead of inverted for simpler new message addition
-        />
-        <View style={[styles.inputContainer, { borderTopColor: currentThemeColors.text + '30' }]}>
-          <TextInput
-            style={[styles.textInput, { color: currentThemeColors.text, borderColor: currentThemeColors.primary, backgroundColor: currentThemeColors.background + 'F0' }]}
-            value={inputText}
-            onChangeText={setInputText}
-            placeholder="Type a message..."
-            placeholderTextColor={currentThemeColors.text + '99'}
-            multiline
+        {loading ? (
+          <View style={styles.centered}>
+            <ActivityIndicator size="large" color={theme.primary} />
+          </View>
+        ) : (
+          <FlatList
+            ref={flatListRef}
+            data={messages}
+            keyExtractor={item => item._id}
+            renderItem={renderItem}
+            contentContainerStyle={styles.listContentContainer}
+            onContentSizeChange={() => {
+              if (messages.length) {
+                flatListRef.current?.scrollToEnd({ animated: true });
+              }
+            }}
           />
-          <TouchableOpacity onPress={handleSend} style={[styles.sendButton, { backgroundColor: currentThemeColors.primary }]}>
-            <Ionicons name="send" size={22} color={currentThemeColors.background} />
+        )}
+
+        <View style={[styles.inputRow, { borderTopColor: theme.text + '20' }]}>
+          <TextInput
+            style={[styles.input, { color: theme.text, borderColor: theme.text + '40' }]}
+            placeholder="Type a message…"
+            placeholderTextColor={theme.text + '50'}
+            value={text}
+            onChangeText={setText}
+            multiline
+            editable={!sending}
+            blurOnSubmit={false}
+            onSubmitEditing={handleSend}
+          />
+          <TouchableOpacity
+            onPress={handleSend}
+            disabled={!text.trim() || sending}
+            style={[styles.sendButton, { opacity: sending ? 0.5 : 1 }]}
+          >
+            {sending
+              ? <ActivityIndicator size="small" color={theme.primary}/>
+              : <Ionicons name="send" size={24} color={theme.primary}/>}
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -120,63 +309,14 @@ export default function ChatScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-  },
-  keyboardAvoidingView: {
-    flex: 1,
-  },
-  messagesList: {
-    flex: 1,
-    paddingHorizontal: 10,
-  },
-  messagesListContent: {
-    paddingVertical: 10,
-  },
-  messageBubble: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 18,
-    marginVertical: 4,
-    maxWidth: '80%',
-  },
-  currentUserBubble: {
-    alignSelf: 'flex-end',
-    borderBottomRightRadius: 4,
-  },
-  otherUserBubble: {
-    alignSelf: 'flex-start',
-    borderBottomLeftRadius: 4,
-  },
-  messageText: {
-    fontSize: 16,
-  },
-  timestamp: {
-    fontSize: 10,
-    marginTop: 4,
-    alignSelf: 'flex-end',
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 8,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  textInput: {
-    flex: 1,
-    minHeight: 40,
-    maxHeight: 120, // Allow multiple lines up to a certain height
-    borderWidth: 1,
-    borderRadius: 20,
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    fontSize: 16,
-    marginRight: 8,
-  },
-  sendButton: {
-    padding: 10,
-    borderRadius: 20, // Make it circular
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  centered:            { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  listContentContainer:{ paddingHorizontal: 12, flexGrow: 1, justifyContent: 'flex-end' },
+  bubble:              { marginVertical: 6, padding: 12, borderRadius: 18, maxWidth: '80%' },
+  myBubble:            { alignSelf: 'flex-end', borderBottomRightRadius: 4 },
+  theirBubble:         { alignSelf: 'flex-start', borderBottomLeftRadius: 4 },
+  bubbleText:          { fontSize: 16, lineHeight: 22 },
+  timestamp:           { fontSize: 11, marginTop: 4, alignSelf: 'flex-end' },
+  inputRow:            { flexDirection: 'row', padding: 10, borderTopWidth: 1, alignItems: 'center' },
+  input:               { flex: 1, borderWidth: 1, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, fontSize: 16, marginRight: 8 },
+  sendButton:          { justifyContent: 'center', padding: 8 },
 });

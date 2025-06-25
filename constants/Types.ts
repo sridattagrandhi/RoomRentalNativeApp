@@ -24,14 +24,6 @@ export interface Listing {
   postedDate?: string;
 }
 
-export interface Message {
-  id: string;
-  text: string;
-  senderId: string; // To identify if the message was sent by the current user or the other person
-  timestamp: Date;    // Or use string if you prefer, then parse
-  // Optional: add recipientId if you store all messages globally and filter
-}
-
 export interface UserProfile {
   _id?: string; // MongoDB's document ID
   id?: string; // Mongoose might also provide 'id' as a virtual
@@ -41,11 +33,27 @@ export interface UserProfile {
   profileImageUrl?: string;
 }
 
+// Corrected Message Type to match backend payload
+export interface Message {
+  _id: string;
+  chatId: string;
+  text: string;
+  sender: {
+    _id: string; // This will be the Firebase UID
+    name?: string;
+    profileImageUrl?: string;
+  };
+  timestamp: string;
+}
+
+// Corrected ChatListItem to include recipient's Firebase UID
 export interface ChatListItem {
-  chatId: string; // This will be the ID of the other user/owner
-  recipientName: string; // Name of the person or context of the chat (e.g., Listing Title)
-  recipientAvatar?: string; // URL for their avatar (optional)
+  chatId: string;
+  recipientId: string; // MongoDB ID
+  recipientFirebaseUID: string; // Firebase UID
+  recipientName: string;
+  recipientAvatar?: string;
   lastMessageText: string;
-  lastMessageTimestamp: Date; // Or string
-  unreadCount?: number; // Optional for now
+  lastMessageTimestamp: string;
+  unreadCount: number;
 }

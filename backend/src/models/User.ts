@@ -1,9 +1,10 @@
-import mongoose, { Schema, Document } from 'mongoose';
+import mongoose, { Schema, Document, Types } from 'mongoose';
 
 // Define an interface representing a document in MongoDB.
 // This should align with your UserProfile type on the frontend,
 // plus any backend-specific fields like firebaseUID.
 export interface IUser extends Document {
+  _id: Types.ObjectId; 
   firebaseUID: string; // From Firebase Authentication, used as a primary key/link
   email: string;
   name?: string; // Corresponds to 'Full Name' from signup
