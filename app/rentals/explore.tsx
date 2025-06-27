@@ -1,5 +1,5 @@
 // app/rental/explore.tsx
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,9 +12,9 @@ import {
   Alert,
   RefreshControl,
   ScrollView,
-  Image, // Import Image for the card
+  Image,
 } from 'react-native';
-import { useRouter, useLocalSearchParams, Stack } from 'expo-router';
+import { useRouter, useLocalSearchParams, Stack, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 import ThemedView from '../../components/ThemedView';
@@ -22,9 +22,8 @@ import ThemedText from '../../components/ThemedText';
 import { Colors } from '../../constants/Colors';
 import { Listing } from '../../constants/Types';
 import { useColorScheme } from '../../hooks/useColorScheme';
-import { styles } from './explore.styles'; // Import our new styles
+import { styles } from './explore.styles';
 
-// A new, redesigned ListingCard component defined within this file
 interface ListingCardProps {
   listing: Listing;
   onPress: () => void;
@@ -42,7 +41,6 @@ const ListingCard: React.FC<ListingCardProps> = ({ listing, onPress, themeColors
         style={styles.cardImage}
       />
       
-      {/* Rent Price Badge */}
       <View style={[styles.rentContainer, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
         <Text style={[styles.rentText, { color: '#FFFFFF' }]}>
           ₹{listing.rent.toLocaleString()}/month
@@ -54,12 +52,14 @@ const ListingCard: React.FC<ListingCardProps> = ({ listing, onPress, themeColors
           {listing.title}
         </ThemedText>
         
-        <View style={styles.locationContainer}>
-          <Ionicons name="location-outline" size={16} color={themeColors.text + '99'} />
-          <ThemedText style={[styles.locationText, { color: themeColors.text + '99' }]} numberOfLines={1}>
-            {listing.locality}, {listing.city}
-          </ThemedText>
-        </View>
+        {listing.address && (
+          <View style={styles.locationContainer}>
+            <Ionicons name="location-outline" size={16} color={themeColors.text + '99'} />
+            <ThemedText style={[styles.locationText, { color: themeColors.text + '99' }]} numberOfLines={1}>
+              {listing.address.locality}, {listing.address.city}
+            </ThemedText>
+          </View>
+        )}
 
         <View style={[styles.detailsContainer, { borderTopColor: themeColors.text + '15', borderTopWidth: 1 }]}>
           <View style={styles.detailItem}>
@@ -101,6 +101,7 @@ export default function ExploreScreen() {
 
   const fetchListings = useCallback(async (isRefreshing = false) => {
     if (!city) {
+      setListings([]);
       setIsLoading(false);
       return;
     }
@@ -109,7 +110,7 @@ export default function ExploreScreen() {
     }
     
     try {
-      const YOUR_BACKEND_BASE_URL = 'http://localhost:5001'; // CONFIGURE
+      const YOUR_BACKEND_BASE_URL = Platform.OS === 'android' ? 'http://10.0.2.2:5001' : 'http://localhost:5001';
       const endpoint = `${YOUR_BACKEND_BASE_URL}/api/listings?city=${encodeURIComponent(city)}`;
       
       const response = await fetch(endpoint);
@@ -124,9 +125,12 @@ export default function ExploreScreen() {
     }
   }, [city]);
 
-  useEffect(() => {
-    fetchListings();
-  }, [fetchListings]);
+  // This hook re-fetches listings every time the screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      fetchListings();
+    }, [fetchListings])
+  );
 
   if (isLoading) {
     return (
@@ -157,7 +161,7 @@ export default function ExploreScreen() {
             renderItem={({ item }) => (
               <ListingCard
                 listing={item}
-                onPress={() => router.push(`/listings/${item.id || item._id}`)} // Use _id as fallback
+                onPress={() => router.push(`/listings/${item.id || item._id}`)}
                 themeColors={currentThemeColors}
               />
             )}
@@ -176,14 +180,14 @@ export default function ExploreScreen() {
           >
             <Ionicons name="search-outline" size={60} color={currentThemeColors.text + '70'} />
             <ThemedText style={[styles.emptyText, { color: currentThemeColors.text + 'AA' }]}>
-              No listings found for {city || 'this city'}.
+              No listings found for {city || 'this area'}.
             </ThemedText>
           </ScrollView>
         )}
 
         <TouchableOpacity
           style={[styles.fab, { backgroundColor: currentThemeColors.primary }]}
-          onPress={() => router.push('/rentals/post-room')}
+          onPress={() => router.push({ pathname: '/rentals/post-room', params: { city } })}
         >
           <Ionicons name="add" size={30} color={currentThemeColors.background} style={styles.fabIcon} />
         </TouchableOpacity>

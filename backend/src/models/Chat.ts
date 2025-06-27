@@ -3,9 +3,10 @@ import mongoose, { Schema, Document, Types } from 'mongoose';
 
 // The Chat document represents a conversation thread
 export interface IChat extends Document {
-    _id: Types.ObjectId;
+  _id: Types.ObjectId;
   participants: Types.ObjectId[];
-  lastMessage?: { // lastMessage is now optional
+  listing: Types.ObjectId; // <--- ADDED: A required reference to the listing
+  lastMessage?: {
     text: string;
     timestamp: Date;
     sender: Types.ObjectId;
@@ -18,6 +19,15 @@ export interface IChat extends Document {
 const ChatSchema = new Schema<IChat>(
   {
     participants: [{ type: Schema.Types.ObjectId, ref: 'User', required: true }],
+    
+    // --- ADDED THIS ENTIRE FIELD ---
+    listing: {
+      type: Schema.Types.ObjectId,
+      ref: 'Listing', // This name must match your Listing model name
+      required: true,
+    },
+    // -----------------------------
+
     lastMessage: {
       text: { type: String },
       timestamp: { type: Date },
@@ -34,5 +44,9 @@ const ChatSchema = new Schema<IChat>(
 
 // Index for efficiently finding chats by participants
 ChatSchema.index({ participants: 1 });
+
+// You might want to add an index for chats related to a specific listing and user
+ChatSchema.index({ listing: 1, participants: 1 });
+
 
 export default mongoose.model<IChat>('Chat', ChatSchema);

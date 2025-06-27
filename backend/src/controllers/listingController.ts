@@ -50,13 +50,16 @@ export const getMyListings = async (req: Request, res: Response, next: NextFunct
 // This is a public route, no 'protect' middleware needed.
 export const getPublicListings = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const city = req.query.city; // e.g., /api/listings?city=Mumbai
+    const city = req.query.city; 
 
-    let query = {};
+    let query: any = {};
     if (city && typeof city === 'string') {
-      // Use a case-insensitive regular expression for city matching
-      query = { city: { $regex: new RegExp(`^${city}$`, 'i') } };
+      // Use a case-insensitive regular expression to match the nested address.city field
+      query = { 'address.city': { $regex: new RegExp(`^${city}$`, 'i') } };
     }
+
+    // You might also want to only show available listings
+    query.isAvailable = true;
 
     const listings = await Listing.find(query).sort({ postedDate: -1 });
     res.status(200).json(listings);

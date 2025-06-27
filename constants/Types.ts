@@ -3,8 +3,22 @@ export interface Listing {
   id: string; // This will map to MongoDB's _id
   _id?: string; // Mongoose might return _id, good to have both
   title: string;
-  city: string;
-  locality: string;
+  
+  // --- MODIFICATION START ---
+  // Remove the old flat properties
+  // city: string;
+  // locality: string;
+
+  // Add the new nested address object to match your backend schema
+  address: {
+    street: string;
+    locality: string;
+    city: string;
+    state: string;
+    postalCode: string;
+  };
+  // --- MODIFICATION END ---
+  
   rent: number;
   type: string;
   bedrooms: number;
@@ -17,9 +31,8 @@ export interface Listing {
   additionalInfo?: string;
   image: string;
   imageUris?: string[];
-  // CORRECTED: The owner field can be a simple string (the ID) or a populated UserProfile object
   owner: string | UserProfile;
-  ownerId?: string; // Keep ownerId as it might be used elsewhere before population
+  ownerId?: string;
   isAvailable?: boolean;
   postedDate?: string;
 }
@@ -56,4 +69,6 @@ export interface ChatListItem {
   lastMessageText: string;
   lastMessageTimestamp: string;
   unreadCount: number;
+  listingTitle?: string;
+  listingOwnerFirebaseUID?: string;
 }

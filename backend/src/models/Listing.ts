@@ -1,11 +1,17 @@
 // backend/src/models/Listing.ts
 import mongoose, { Schema, Document, Types } from 'mongoose';
-import { IUser } from './User'; // We'll link to the User model
+import { IUser } from './User';
 
 export interface IListing extends Document {
   title: string;
-  city: string;
-  locality: string;
+  // --- MODIFICATION: Replaced city/locality with structured address ---
+  address: {
+    street: string;
+    locality: string;
+    city: string;
+    state: string;
+    postalCode: string;
+  };
   rent: number;
   type: string;
   bedrooms: number;
@@ -18,7 +24,7 @@ export interface IListing extends Document {
   additionalInfo?: string;
   image: string;
   imageUris?: string[];
-  owner: Types.ObjectId | IUser; // Link to the User document
+  owner: Types.ObjectId | IUser;
   isAvailable?: boolean;
   postedDate?: Date;
 }
@@ -26,8 +32,17 @@ export interface IListing extends Document {
 const ListingSchema: Schema = new Schema(
   {
     title: { type: String, required: true, trim: true },
-    city: { type: String, required: true, trim: true, index: true },
-    locality: { type: String, required: true, trim: true },
+    // --- MODIFICATION: Updated schema to use a nested address object ---
+    address: {
+      type: {
+        street: { type: String, required: true, trim: true },
+        locality: { type: String, required: true, trim: true },
+        city: { type: String, required: true, trim: true, index: true },
+        state: { type: String, required: true, trim: true },
+        postalCode: { type: String, required: true, trim: true },
+      },
+      required: true,
+    },
     rent: { type: Number, required: true },
     type: { type: String, required: true },
     bedrooms: { type: Number, required: true },
@@ -42,11 +57,11 @@ const ListingSchema: Schema = new Schema(
     amenities: [{ type: String }],
     description: { type: String, required: true },
     additionalInfo: { type: String },
-    image: { type: String, required: true }, // Main thumbnail image URL
-    imageUris: [{ type: String }], // Array of all image URLs
+    image: { type: String, required: true },
+    imageUris: [{ type: String }],
     owner: {
       type: Schema.Types.ObjectId,
-      ref: 'User', // Creates a reference to a document in the 'User' collection
+      ref: 'User',
       required: true,
       index: true,
     },
@@ -54,7 +69,7 @@ const ListingSchema: Schema = new Schema(
     postedDate: { type: Date, default: Date.now },
   },
   {
-    timestamps: true, // Adds createdAt and updatedAt fields
+    timestamps: true,
   }
 );
 

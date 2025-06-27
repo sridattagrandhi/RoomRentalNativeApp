@@ -27,6 +27,16 @@ export const getThreads = async (
 
     const threads = await Chat.find({ participants: me._id })
       .populate('participants', 'name profileImageUrl firebaseUID')
+      // This is a nested populate. It gets the listing, and within that,
+      // it gets the owner and selects their firebaseUID.
+      .populate({
+        path: 'listing',
+        select: 'title owner', // Get title and owner from Listing
+        populate: {
+          path: 'owner',      // Populate the owner field inside the listing
+          select: 'firebaseUID' // Select only the firebaseUID from the User model
+        }
+      })
       .sort({ updatedAt: -1 })
       .lean();
 
@@ -53,6 +63,9 @@ export const getThreads = async (
           lastMessageTimestamp: thread.lastMessage?.timestamp?.toISOString() || new Date().toISOString(),
           unreadCount,
           updatedAt: thread.updatedAt.toISOString(),
+          // Adds the populated listing title to the response
+          listingTitle: (thread.listing as any)?.title,
+          listingOwnerFirebaseUID: (thread.listing as any)?.owner?.firebaseUID,
         };
       })
       .filter(Boolean);
@@ -89,7 +102,6 @@ export const getMessages = async (
       return;
     }
 
-    // Check if user is a participant
     const isParticipant = chat.participants.some(pId => pId.equals(me._id));
     if (!isParticipant) {
       res.status(403).json({ message: 'Access denied to this chat' });
@@ -101,13 +113,11 @@ export const getMessages = async (
       .populate('sender', 'name profileImageUrl firebaseUID')
       .lean();
 
-    // Mark messages as read
     await Chat.updateOne(
         { _id: chat._id },
         { $set: { [`unreadCountByUser.${me._id}`]: 0 } }
     );
 
-    // Emit messages read event
     req.io?.to(chatId).emit('messagesRead', {
       chatId,
       readerId: req.user!.uid,
@@ -142,67 +152,62 @@ export const postMessage = async (
     next: NextFunction
   ): Promise<void> => {
     try {
-      const { text, otherUserId, chatId: maybeChatId } = req.body as {
+      // Accepts listingId from the request body now
+      const { text, otherUserId, chatId: maybeChatId, listingId } = req.body as {
         text: string;
-        otherUserId: string;   // recipient’s Firebase UID or Mongo ID
-        chatId?: string;       // optional existing chat ID
+        otherUserId: string;
+        chatId?: string;
+        listingId?: string;
       };
   
-      // 1) Validate input
       if (!text?.trim() || !otherUserId) {
         res.status(400).json({ message: 'Recipient and text are required' });
         return;
       }
   
-      // 2) Lookup sender by Firebase UID
       const me = await User.findOne({ firebaseUID: req.user!.uid });
-      if (!me) {
-        res.status(404).json({ message: 'Sender not found' });
-        return;
-      }
+      if (!me) { res.status(404).json({ message: 'Sender not found' }); return; }
   
-      // 3) Lookup recipient (handle Firebase UID or Mongo _id)
       const recipient = Types.ObjectId.isValid(otherUserId)
         ? await User.findById(otherUserId)
         : await User.findOne({ firebaseUID: otherUserId });
-      if (!recipient) {
-        res.status(404).json({ message: 'Recipient not found' });
-        return;
-      }
+      if (!recipient) { res.status(404).json({ message: 'Recipient not found' }); return; }
   
-      // 4) Find existing chat by ID or by participant-pair
       let chat = maybeChatId && Types.ObjectId.isValid(maybeChatId)
         ? await Chat.findById(maybeChatId)
         : null;
   
       if (chat && !chat.participants.includes(me._id)) {
-        res.status(403).json({ message: 'Access denied' });
-        return;
+        res.status(403).json({ message: 'Access denied' }); return;
       }
   
       if (!chat) {
         chat = await Chat.findOne({
-          participants: { $all: [me._id, recipient._id], $size: 2 }
+          participants: { $all: [me._id, recipient._id], $size: 2 },
+          listing: listingId, // Also ensures we don't create duplicate chats for the same listing
         });
       }
   
-      // Prepare the lastMessage payload
       const lastMessageData = {
         text:      text.trim(),
         timestamp: new Date(),
         sender:    me._id,
       };
   
-      // 5) Create new chat if none found
       if (!chat) {
+        // Requires listingId to create a new chat
+        if (!listingId) {
+          res.status(400).json({ message: 'listingId is required for a new chat' });
+          return;
+        }
         chat = new Chat({
           participants:      [me._id, recipient._id],
-          lastMessage:      lastMessageData,
+          listing:           listingId, // Saves the listing reference
+          lastMessage:       lastMessageData,
           unreadCountByUser: { [recipient._id.toString()]: 1 },
         });
         await chat.save();
       } else {
-        // 6) Update existing chat using Mongo operators
         await Chat.updateOne(
           { _id: chat._id },
           {
@@ -212,7 +217,6 @@ export const postMessage = async (
         );
       }
   
-      // 7) Save the new message
       const message = await Message.create({
         chatId:    chat._id,
         sender:    me._id,
@@ -220,7 +224,6 @@ export const postMessage = async (
         timestamp: new Date(),
       });
   
-      // 8) Populate and broadcast via Socket.IO
       await message.populate('sender', 'name profileImageUrl firebaseUID');
       const sp = message.sender as any;
       const payload = {
@@ -235,19 +238,15 @@ export const postMessage = async (
         },
       };
   
-      // send to chat room
       req.io?.to(chat._id.toString()).emit('message', payload);
-      // notify inbox listeners
       chat.participants.forEach(pid =>
         req.io?.to(`user-inbox-${pid.toString()}`)
            .emit('chat-activity', { chatId: chat._id.toString() })
       );
   
-      // 9) Respond
       res.status(201).json(payload);
     } catch (err) {
       console.error('postMessage error:', err);
       next(err);
     }
   };
-  

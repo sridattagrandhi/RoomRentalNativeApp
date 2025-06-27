@@ -188,23 +188,36 @@ export default function MyListingsScreen() {
                 >
                   {item.title}
                 </Text>
-                <Text style={{ color: theme.text + '99' }}>
-                  {item.locality}, {item.city}
-                </Text>
+
+                {/* This conditional check prevents the app from crashing on old data */}
+                {item.address && (
+                  <Text style={{ color: theme.text + '99' }}>
+                    {item.address.locality}, {item.address.city}
+                  </Text>
+                )}
+
                 <Text style={{ color: theme.primary, marginTop: 4 }}>
                   ₹{item.rent.toLocaleString()}/mo
                 </Text>
 
-                {/* ✏️ Edit button */}
                 <TouchableOpacity
-                  onPress={() => router.push(`/listings/${item.id}/edit`)}
-                  style={{ position: 'absolute', top: 10, right: 10 }}
+                  onPress={() => router.push({ 
+                      pathname: '/rentals/post-room', 
+                      params: { listingId: item.id, editMode: 'true' } 
+                  })}
+                  style={{ position: 'absolute', top: 10, right: 10, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 15, padding: 4 }}
                 >
-                  <Ionicons name="pencil-outline" size={24} color={theme.primary} />
+                  <Ionicons name="pencil-outline" size={20} color={'#fff'} />
                 </TouchableOpacity>
               </TouchableOpacity>
             </Swipeable>
           )}
+          ListEmptyComponent={
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 100 }}>
+              <Ionicons name="home-outline" size={60} color={theme.text + '70'} />
+              <Text style={{ color: theme.text, marginTop: 10, fontSize: 16 }}>You haven't posted any listings yet.</Text>
+            </View>
+          }
         />
       </SafeAreaView>
     </GestureHandlerRootView>
