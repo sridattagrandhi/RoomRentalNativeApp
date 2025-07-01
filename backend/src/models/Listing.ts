@@ -72,7 +72,7 @@ const ListingSchema: Schema = new Schema(
     timestamps: true,
   }
 );
-
+ListingSchema.index({ title: 'text', description: 'text' });
 const Listing = mongoose.model<IListing>('Listing', ListingSchema);
 
 export default Listing;

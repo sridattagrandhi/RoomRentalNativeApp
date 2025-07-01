@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useCallback } from 'react'
+// app/listings/[listingId]/edit.tsx
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   SafeAreaView,
   ScrollView,
@@ -15,26 +16,26 @@ import {
   Platform,
   Switch,
   TextInputProps,
-} from 'react-native'
-import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
-import { Ionicons } from '@expo/vector-icons'
-import { useAuth } from '../../../context/AuthContext'
-import { Listing } from '../../../constants/Types'
-import { Colors } from '../../../constants/Colors'
-import { useColorScheme } from '../../../hooks/useColorScheme'
+} from 'react-native';
+import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '../../../context/AuthContext';
+import { Listing } from '../../../constants/Types';
+import { Colors } from '../../../constants/Colors';
+import { useColorScheme } from '../../../hooks/useColorScheme';
 
-const windowWidth = Dimensions.get('window').width
+const windowWidth = Dimensions.get('window').width;
 const BASE_URL =
   Platform.OS === 'android'
     ? 'http://10.0.2.2:5001'
-    : 'http://localhost:5001'
+    : 'http://localhost:5001';
 
 // Typed helper component for form fields
 interface EditableFieldProps extends TextInputProps {
-  label: string
+  label: string;
 }
 const EditableField: React.FC<EditableFieldProps> = ({ label, style, ...props }) => {
-  const theme = Colors[useColorScheme() || 'light']
+  const theme = Colors[useColorScheme() || 'light'];
   return (
     <View style={styles.fieldContainer}>
       <Text style={[styles.label, { color: theme.text }]}>{label}</Text>
@@ -44,51 +45,70 @@ const EditableField: React.FC<EditableFieldProps> = ({ label, style, ...props })
         {...props}
       />
     </View>
-  )
-}
+  );
+};
 
 export default function ListingEditScreen() {
-  const { listingId } = useLocalSearchParams<{ listingId: string }>()
-  const router = useRouter()
-  const { firebaseUser } = useAuth()
-  const theme = Colors[useColorScheme() || 'light']
+  const { listingId } = useLocalSearchParams<{ listingId: string }>();
+  const router = useRouter();
+  const { firebaseUser } = useAuth();
+  const theme = Colors[useColorScheme() || 'light'];
 
-  const [listing, setListing] = useState<Listing | null>(null)
-  const [draft, setDraft] = useState<Partial<Listing>>({})
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
+  const [listing, setListing] = useState<Listing | null>(null);
+  const [draft, setDraft] = useState<Partial<Listing>>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   // Fetch listing data
   const fetchListing = useCallback(async () => {
-    setLoading(true)
+    setLoading(true);
     try {
-      const res = await fetch(`${BASE_URL}/api/listings/${listingId}`)
-      if (!res.ok) throw new Error('Could not load listing')
-      const data: Listing = await res.json()
-      if (data._id) data.id = data._id
-      setListing(data)
-      setDraft(data)
+      const res = await fetch(`${BASE_URL}/api/listings/${listingId}`);
+      if (!res.ok) throw new Error('Could not load listing');
+      const data: Listing = await res.json();
+      if (data._id) data.id = data._id;
+      setListing(data);
+      setDraft(data);
     } catch (err: any) {
-      Alert.alert('Error', err.message)
-      router.back()
+      Alert.alert('Error', err.message);
+      router.back();
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [listingId])
+  }, [listingId]);
 
   useEffect(() => {
-    fetchListing()
-  }, [fetchListing])
+    fetchListing();
+  }, [fetchListing]);
 
+  // Helper to update top-level fields like 'title', 'rent', etc.
   const updateField = (key: keyof Listing, value: any) => {
-    setDraft(d => ({ ...d, [key]: value }))
-  }
+    setDraft(d => ({ ...d, [key]: value }));
+  };
+
+  // --- CORRECTED: More robust and type-safe helper for nested address fields ---
+  const updateAddressField = (key: keyof Listing['address'], value: string) => {
+    setDraft(currentDraft => {
+      // Start with a default, empty address structure
+      const defaultAddress = { street: '', locality: '', city: '', state: '', postalCode: '' };
+      // Safely spread the existing address properties, or use the default
+      const existingAddress = currentDraft.address || defaultAddress;
+
+      return {
+          ...currentDraft,
+          address: {
+              ...existingAddress,
+              [key]: value,
+          },
+      }
+    });
+  };
 
   const handleSave = async () => {
-    if (!firebaseUser || !listing) return
-    setSaving(true)
+    if (!firebaseUser || !listing) return;
+    setSaving(true);
     try {
-      const token = await firebaseUser.getIdToken()
+      const token = await firebaseUser.getIdToken();
       const res = await fetch(`${BASE_URL}/api/listings/${listing.id}`, {
         method: 'PUT',
         headers: {
@@ -96,27 +116,31 @@ export default function ListingEditScreen() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(draft),
-      })
+      });
       if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.message || 'Save failed')
+        const err = await res.json();
+        throw new Error(err.message || 'Save failed');
       }
 
-      Alert.alert('Saved!', 'Your listing was updated.')
-      router.replace(`/listings/${listing.id}`)
+      Alert.alert('Saved!', 'Your listing was updated.');
+      // --- FIXED: Use the static route for pathname and pass listingId in params ---
+      router.replace({ 
+        pathname: '/listings/[listingId]', 
+        params: { listingId: listing.id, from: 'edit' } 
+      });
     } catch (err: any) {
-      Alert.alert('Error', err.message)
+      Alert.alert('Error', err.message);
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   if (loading || !listing) {
     return (
       <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>        
         <ActivityIndicator style={{ flex: 1 }} size="large" color={theme.primary} />
       </SafeAreaView>
-    )
+    );
   }
 
   return (
@@ -161,14 +185,30 @@ export default function ListingEditScreen() {
 
           <Text style={[styles.sectionHeader, { color: theme.text }]}>Location</Text>
           <EditableField
-            label="City"
-            value={draft.city}
-            onChangeText={t => updateField('city', t)}
+            label="Street Address"
+            value={draft.address?.street}
+            onChangeText={t => updateAddressField('street', t)}
           />
           <EditableField
             label="Locality / Neighborhood"
-            value={draft.locality}
-            onChangeText={t => updateField('locality', t)}
+            value={draft.address?.locality}
+            onChangeText={t => updateAddressField('locality', t)}
+          />
+          <EditableField
+            label="City"
+            value={draft.address?.city}
+            onChangeText={t => updateAddressField('city', t)}
+          />
+          <EditableField
+            label="State"
+            value={draft.address?.state}
+            onChangeText={t => updateAddressField('state', t)}
+          />
+          <EditableField
+            label="Postal Code"
+            value={draft.address?.postalCode}
+            onChangeText={t => updateAddressField('postalCode', t)}
+            keyboardType="numeric"
           />
 
           <Text style={[styles.sectionHeader, { color: theme.text }]}>Listing Details</Text>
@@ -210,6 +250,7 @@ export default function ListingEditScreen() {
           <EditableField
             label="Description"
             value={draft.description}
+            onChangeText={t => updateField('description', t)}
             multiline
             numberOfLines={4}
           />
@@ -228,6 +269,7 @@ export default function ListingEditScreen() {
           <EditableField
             label="Additional Info"
             value={draft.additionalInfo}
+            onChangeText={t => updateField('additionalInfo', t)}
             multiline
             numberOfLines={2}
           />
@@ -253,7 +295,10 @@ export default function ListingEditScreen() {
             <TouchableOpacity
               style={[styles.button, styles.cancelButton]}
               disabled={saving}
-              onPress={() => router.replace(`/listings/${listing.id}`)}
+              onPress={() => router.replace({ 
+                pathname: '/listings/[listingId]', 
+                params: { listingId: listing.id, from: 'edit' } 
+              })}
             >
               <Text style={[styles.buttonText, { color: theme.text + '80' }]}>Cancel</Text>
             </TouchableOpacity>
@@ -261,7 +306,7 @@ export default function ListingEditScreen() {
         </View>
       </ScrollView>
     </SafeAreaView>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -328,4 +373,4 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-})
+});

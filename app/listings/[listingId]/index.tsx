@@ -13,7 +13,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  Linking, // Import Linking
+  Linking,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -86,12 +86,30 @@ export default function ListingView() {
   const images = (listing.imageUris?.length ?? 0) > 0 ? listing.imageUris! : [listing.image || 'https://placehold.co/600x400'];
   const ownerObj = typeof listing.owner === 'object' ? (listing.owner as UserProfile) : undefined;
   const ownerId = ownerObj?._id || ownerObj?.id;
-  const showChat = from !== 'myListings' && ownerObj?.firebaseUID !== firebaseUser?.uid; // Also hide chat if it's the user's own listing
+  
+  const isOwner = ownerObj?.firebaseUID === firebaseUser?.uid; //
+  // MODIFICATION: Hide chat button if user is owner, or is coming from 'myListings' or 'edit' screens.
+  const showChat = !isOwner && from !== 'myListings' && from !== 'edit'; //
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
       <Stack.Screen
-        options={{ title: '', headerBackTitle: 'Back', headerTintColor: theme.primary, headerStyle: { backgroundColor: theme.background } }}
+        options={{
+          title: '',
+          headerBackTitle: 'Back',
+          headerTintColor: theme.primary,
+          headerStyle: { backgroundColor: theme.background },
+          headerRight: () => (
+            isOwner ? (
+              <TouchableOpacity 
+                style={{ marginRight: 15 }} 
+                onPress={() => router.push(`/listings/${listingId}/edit`)}
+              >
+                <Ionicons name="create-outline" size={24} color={theme.primary} />
+              </TouchableOpacity>
+            ) : null
+          ),
+        }}
       />
       <FlatList
         data={images}

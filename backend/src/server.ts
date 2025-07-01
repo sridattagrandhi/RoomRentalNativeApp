@@ -11,6 +11,7 @@ import authRoutes from './routes/authRoutes';
 import listingRoutes from './routes/listingRoutes';
 import chatRoutes from './routes/chatRoutes';
 import User from './models/User';
+import userRoutes from './routes/userRoutes';
 
 dotenv.config();
 
@@ -47,6 +48,7 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/listings', listingRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/users', userRoutes);
 
 
 io.use(async (socket: Socket, next) => {

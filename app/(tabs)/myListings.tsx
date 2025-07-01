@@ -201,10 +201,7 @@ export default function MyListingsScreen() {
                 </Text>
 
                 <TouchableOpacity
-                  onPress={() => router.push({ 
-                      pathname: '/rentals/post-room', 
-                      params: { listingId: item.id, editMode: 'true' } 
-                  })}
+                  onPress={() => router.push(`/listings/${item.id}/edit`)}
                   style={{ position: 'absolute', top: 10, right: 10, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 15, padding: 4 }}
                 >
                   <Ionicons name="pencil-outline" size={20} color={'#fff'} />

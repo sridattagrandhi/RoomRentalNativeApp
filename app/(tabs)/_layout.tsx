@@ -48,6 +48,17 @@ export default function TabLayout() {
         }}
       />
 
+      {/* --- NEW WISHLIST TAB --- */}
+      <Tabs.Screen
+        name="wishlist" // This will render app/(tabs)/wishlist.tsx
+        options={{
+          title: 'Wishlist',
+          tabBarIcon: ({ color, focused, size }) => (
+            <Ionicons name={focused ? 'heart' : 'heart-outline'} color={color} size={size} />
+          ),
+        }}
+      />
+
       <Tabs.Screen
         name="profile" // ProfileScreen
         options={{
