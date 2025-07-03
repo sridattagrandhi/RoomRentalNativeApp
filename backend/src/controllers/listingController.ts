@@ -48,73 +48,64 @@ export const getMyListings = async (req: Request, res: Response, next: NextFunct
 
 // GET /api/listings - Get all public listings, can be filtered by city
 // This is a public route, no 'protect' middleware needed.
-// backend/src/controllers/listingController.ts
-
 export const getPublicListings = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    // --- STEP 1: Read all potential filter parameters from the request URL ---
     const { 
         city, search, minRent, maxRent, bedrooms, bathrooms,
-        furnishingStatus, type, amenities, preferredTenants 
+        furnishingStatus, type, 
+        // --- NEW: Destructure new query params ---
+        minArea, maxArea, amenities, preferredTenants 
     } = req.query;
 
-    // Start with a base query
     let query: any = { isAvailable: true };
 
-    // --- STEP 2: Dynamically build the query object ---
-
-    // Location & Search (as before)
     if (city && typeof city === 'string') {
       query['address.city'] = { $regex: new RegExp(`^${city}$`, 'i') };
     }
     if (search && typeof search === 'string') {
       query.$text = { $search: search };
     }
-
-    // --- NEW FILTERS ---
-
-    // Rent Range
     if (minRent || maxRent) {
       query.rent = {};
       if (minRent) query.rent.$gte = Number(minRent);
       if (maxRent) query.rent.$lte = Number(maxRent);
     }
-    
-    // Bedrooms (at least this many)
     if (bedrooms) {
       query.bedrooms = { $gte: Number(bedrooms) };
     }
-
-    // Bathrooms (at least this many)
     if (bathrooms) {
       query.bathrooms = { $gte: Number(bathrooms) };
     }
-
-    // Property Type (exact match, case-insensitive)
     if (type && typeof type === 'string') {
         query.type = { $regex: new RegExp(`^${type}$`, 'i') };
     }
-
-    // Furnishing Status (exact match)
     if (furnishingStatus && typeof furnishingStatus === 'string') {
         query.furnishingStatus = furnishingStatus;
     }
 
+    // --- NEW: Add logic for new filters ---
+
+    // Area Range (in sq ft)
+    if (minArea || maxArea) {
+      query.areaSqFt = {};
+      if (minArea) query.areaSqFt.$gte = Number(minArea);
+      if (maxArea) query.areaSqFt.$lte = Number(maxArea);
+    }
+    
     // Amenities (must have ALL selected amenities)
     // Expects amenities to be a comma-separated string: "WiFi,AC"
-    if (amenities && typeof amenities === 'string') {
+    if (amenities && typeof amenities === 'string' && amenities.length > 0) {
         const amenitiesList = amenities.split(',');
         query.amenities = { $all: amenitiesList };
     }
 
     // Preferred Tenants (must match at least ONE of the selected tenants)
     // Expects tenants to be a comma-separated string: "Bachelors,Family"
-    if (preferredTenants && typeof preferredTenants === 'string') {
+    if (preferredTenants && typeof preferredTenants === 'string' && preferredTenants.length > 0) {
         const tenantsList = preferredTenants.split(',');
         query.preferredTenants = { $in: tenantsList };
     }
     
-    // --- STEP 3: Execute the final, combined query ---
     const listings = await Listing.find(query).sort({ postedDate: -1 });
 
     res.status(200).json(listings);

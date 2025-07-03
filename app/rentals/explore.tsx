@@ -19,13 +19,17 @@ import { Ionicons } from '@expo/vector-icons';
 
 import ThemedView from '../../components/ThemedView';
 import ThemedText from '../../components/ThemedText';
-import ListingCard from '../../components/ListingCard'; // Import the reusable ListingCard component
-import { useAuth } from '../../context/AuthContext'; // Import useAuth to get user info
+import ListingCard from '../../components/ListingCard';
+import { useAuth } from '../../context/AuthContext';
 
 import { Colors } from '../../constants/Colors';
 import { Listing } from '../../constants/Types';
 import { useColorScheme } from '../../hooks/useColorScheme';
 import { styles } from './explore.styles';
+
+// --- NEW: Constants for multi-select filters ---
+const COMMON_AMENITIES = ['WiFi', 'AC', 'Parking', 'Kitchen', 'Washing Machine', 'TV'];
+const COMMON_TENANT_TYPES = ['Bachelors', 'Family', 'Students', 'Professionals'];
 
 // Constants for filter options
 const FURNISHING_STATUSES = ['furnished', 'semi-furnished', 'unfurnished'];
@@ -35,12 +39,11 @@ const BASE_URL = Platform.OS === 'android' ? 'http://10.0.2.2:5001' : 'http://lo
 export default function ExploreScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ city?: string }>();
-  const { firebaseUser } = useAuth(); // Get the authenticated user
+  const { firebaseUser } = useAuth();
 
   const [listings, setListings] = useState<Listing[]>([]);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isSearching, setIsSearching] = useState(false);
-
   const [wishlist, setWishlist] = useState<string[]>([]);
 
   // --- STATE FOR ALL FILTERS ---
@@ -51,6 +54,11 @@ export default function ExploreScreen() {
   const [maxRent, setMaxRent] = useState('');
   const [furnishingStatus, setFurnishingStatus] = useState<string | null>(null);
   const [propertyType, setPropertyType] = useState<string | null>(null);
+  // --- NEW: State for new filters ---
+  const [minArea, setMinArea] = useState('');
+  const [maxArea, setMaxArea] = useState('');
+  const [amenities, setAmenities] = useState<string[]>([]);
+  const [preferredTenants, setPreferredTenants] = useState<string[]>([]);
 
   // Modal visibility state
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -62,111 +70,18 @@ export default function ExploreScreen() {
   const [tempMaxRent, setTempMaxRent] = useState(maxRent);
   const [tempFurnishingStatus, setTempFurnishingStatus] = useState<string | null>(furnishingStatus);
   const [tempPropertyType, setTempPropertyType] = useState<string | null>(propertyType);
+  // --- NEW: Temp state for new filters ---
+  const [tempMinArea, setTempMinArea] = useState(minArea);
+  const [tempMaxArea, setTempMaxArea] = useState(maxArea);
+  const [tempAmenities, setTempAmenities] = useState<string[]>(amenities);
+  const [tempPreferredTenants, setTempPreferredTenants] = useState<string[]>(preferredTenants);
 
   const colorScheme = useColorScheme() || 'light';
   const currentThemeColors = Colors[colorScheme];
   const city = params.city;
 
-  // Fetches the user's wishlist from the backend
-  useFocusEffect(
-    useCallback(() => {
-      const fetchWishlist = async () => {
-        if (!firebaseUser) {
-          setWishlist([]);
-          return;
-        }
-        try {
-          const token = await firebaseUser.getIdToken();
-          const response = await fetch(`${BASE_URL}/api/users/wishlist`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (!response.ok) throw new Error('Could not fetch wishlist');
-          const data: Listing[] = await response.json();
-          
-          // --- FIXED: Filter out undefined IDs using a type predicate to ensure type safety ---
-          const wishlistIds = data.map(item => item._id).filter((id): id is string => !!id);
-          setWishlist(wishlistIds);
-
-        } catch (error) {
-          console.error("Failed to fetch wishlist:", error);
-        }
-      };
-
-      fetchWishlist();
-    }, [firebaseUser])
-  );
-
-  // Handles tapping the heart icon to add/remove from wishlist
-  const handleToggleFavorite = async (listingId: string) => {
-    if (!firebaseUser) {
-      Alert.alert("Login Required", "Please log in to save listings to your wishlist.");
-      return;
-    }
-
-    const token = await firebaseUser.getIdToken();
-    const isCurrentlyFavorite = wishlist.includes(listingId);
-    const method = isCurrentlyFavorite ? 'DELETE' : 'POST';
-    const endpoint = `${BASE_URL}/api/users/wishlist/${listingId}`;
-
-    // Optimistic UI update
-    if (isCurrentlyFavorite) {
-      setWishlist(prev => prev.filter(id => id !== listingId));
-    } else {
-      setWishlist(prev => [...prev, listingId]);
-    }
-
-    try {
-      const response = await fetch(endpoint, {
-        method,
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!response.ok) {
-        // Revert on error
-        Alert.alert("Error", "Could not update your wishlist. Please try again.");
-        if (isCurrentlyFavorite) {
-          setWishlist(prev => [...prev, listingId]);
-        } else {
-          setWishlist(prev => prev.filter(id => id !== listingId));
-        }
-      }
-    } catch (error) {
-      console.error("Wishlist toggle failed:", error);
-      Alert.alert("Error", "An unexpected error occurred.");
-    }
-  };
-
-  const handleOpenFilters = () => {
-    setTempBedrooms(bedrooms);
-    setTempBathrooms(bathrooms);
-    setTempMinRent(minRent);
-    setTempMaxRent(maxRent);
-    setTempFurnishingStatus(furnishingStatus);
-    setTempPropertyType(propertyType);
-    setIsModalVisible(true);
-  };
-
-  const handleApplyFilters = () => {
-    setBedrooms(tempBedrooms);
-    setBathrooms(tempBathrooms);
-    setMinRent(tempMinRent);
-    setMaxRent(tempMaxRent);
-    setFurnishingStatus(tempFurnishingStatus);
-    setPropertyType(tempPropertyType);
-    setIsModalVisible(false);
-  };
-
-  const handleClearFilters = () => {
-    setTempBedrooms(null);
-    setTempBathrooms(null);
-    setTempMinRent('');
-    setTempMaxRent('');
-    setTempFurnishingStatus(null);
-    setTempPropertyType(null);
-  };
-
-  const fetchListings = useCallback(async () => {
-    setIsSearching(true);
+  const fetchListings = useCallback(async (isRefreshing = false) => {
+    if (!isRefreshing) setIsSearching(true);
     try {
       const query = new URLSearchParams();
       if (city) query.append('city', city);
@@ -177,11 +92,16 @@ export default function ExploreScreen() {
       if (maxRent) query.append('maxRent', maxRent);
       if (furnishingStatus) query.append('furnishingStatus', furnishingStatus);
       if (propertyType) query.append('type', propertyType);
+      // --- NEW: Append new filters to the query ---
+      if (minArea) query.append('minArea', minArea);
+      if (maxArea) query.append('maxArea', maxArea);
+      if (amenities.length > 0) query.append('amenities', amenities.join(','));
+      if (preferredTenants.length > 0) query.append('preferredTenants', preferredTenants.join(','));
       
       const endpoint = `${BASE_URL}/api/listings?${query.toString()}`;
       
       const response = await fetch(endpoint);
-      if (!response.ok) { throw new Error('Failed to fetch listings.'); }
+      if (!response.ok) throw new Error('Failed to fetch listings.');
       const data: Listing[] = await response.json();
       setListings(data);
     } catch (error: any) {
@@ -190,19 +110,95 @@ export default function ExploreScreen() {
       setIsInitialLoading(false);
       setIsSearching(false);
     }
-  }, [city, searchTerm, bedrooms, bathrooms, minRent, maxRent, furnishingStatus, propertyType]);
+  }, [city, searchTerm, bedrooms, bathrooms, minRent, maxRent, furnishingStatus, propertyType, minArea, maxArea, amenities, preferredTenants]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchListings(!isInitialLoading);
+      const fetchWishlist = async () => {
+        if (!firebaseUser) return setWishlist([]);
+        try {
+          const token = await firebaseUser.getIdToken();
+          const response = await fetch(`${BASE_URL}/api/users/wishlist`, { headers: { Authorization: `Bearer ${token}` } });
+          if (!response.ok) return;
+          const data: Listing[] = await response.json();
+          setWishlist(data.map(item => item._id).filter((id): id is string => !!id));
+        } catch (error) {
+          console.error("Failed to fetch wishlist on focus:", error);
+        }
+      };
+      fetchWishlist();
+    }, [firebaseUser, isInitialLoading])
+  );
 
   useEffect(() => {
     const handler = setTimeout(() => {
       if (!isInitialLoading) fetchListings();
     }, 500);
     return () => clearTimeout(handler);
-  }, [searchTerm, bedrooms, bathrooms, minRent, maxRent, furnishingStatus, propertyType]);
+  }, [searchTerm, bedrooms, bathrooms, minRent, maxRent, furnishingStatus, propertyType, minArea, maxArea, amenities, preferredTenants]);
 
-  useEffect(() => {
-    setIsInitialLoading(true);
-    fetchListings();
-  }, [city]);
+  const handleToggleFavorite = async (listingId: string) => {
+    if (!firebaseUser) return Alert.alert("Login Required", "Please log in to save listings.");
+    const token = await firebaseUser.getIdToken();
+    const isFavorite = wishlist.includes(listingId);
+    const method = isFavorite ? 'DELETE' : 'POST';
+    setWishlist(current => isFavorite ? current.filter(id => id !== listingId) : [...current, listingId]);
+    try {
+      await fetch(`${BASE_URL}/api/users/wishlist/${listingId}`, { method, headers: { Authorization: `Bearer ${token}` } });
+    } catch (error) {
+      console.error("Wishlist toggle failed:", error);
+    }
+  };
+
+  const handleOpenFilters = () => {
+    setTempBedrooms(bedrooms);
+    setTempBathrooms(bathrooms);
+    setTempMinRent(minRent);
+    setTempMaxRent(maxRent);
+    setTempFurnishingStatus(furnishingStatus);
+    setTempPropertyType(propertyType);
+    setTempMinArea(minArea);
+    setTempMaxArea(maxArea);
+    setTempAmenities(amenities);
+    setTempPreferredTenants(preferredTenants);
+    setIsModalVisible(true);
+  };
+
+  const handleApplyFilters = () => {
+    setBedrooms(tempBedrooms);
+    setBathrooms(tempBathrooms);
+    setMinRent(tempMinRent);
+    setMaxRent(tempMaxRent);
+    setFurnishingStatus(tempFurnishingStatus);
+    setPropertyType(tempPropertyType);
+    setMinArea(tempMinArea);
+    setMaxArea(tempMaxArea);
+    setAmenities(tempAmenities);
+    setPreferredTenants(tempPreferredTenants);
+    setIsModalVisible(false);
+  };
+
+  const handleClearFilters = () => {
+    setTempBedrooms(null);
+    setTempBathrooms(null);
+    setTempMinRent('');
+    setTempMaxRent('');
+    setTempFurnishingStatus(null);
+    setTempPropertyType(null);
+    setTempMinArea('');
+    setTempMaxArea('');
+    setTempAmenities([]);
+    setTempPreferredTenants([]);
+  };
+
+  // --- NEW: Helper functions to toggle multi-select filter options ---
+  const handleToggleTempAmenity = (amenity: string) => {
+    setTempAmenities(current => current.includes(amenity) ? current.filter(a => a !== amenity) : [...current, amenity]);
+  };
+  const handleToggleTempTenant = (tenant: string) => {
+    setTempPreferredTenants(current => current.includes(tenant) ? current.filter(t => t !== tenant) : [...current, tenant]);
+  };
 
   if (isInitialLoading) {
     return (
@@ -230,11 +226,8 @@ export default function ExploreScreen() {
           <FlatList
             data={listings}
             renderItem={({ item }) => {
-              // --- FIXED: Establish a reliable ID and use a guard clause ---
               const reliableId = item._id || item.id;
-              if (!reliableId) {
-                return null; // Don't render the card if it has no ID
-              }
+              if (!reliableId) return null;
               return (
                 <ListingCard
                   listing={item}
@@ -247,10 +240,10 @@ export default function ExploreScreen() {
             }}
             keyExtractor={(item) => item._id || item.id || Math.random().toString()}
             contentContainerStyle={styles.listContentContainer}
-            refreshControl={<RefreshControl refreshing={isSearching} onRefresh={fetchListings} tintColor={currentThemeColors.primary} />}
+            refreshControl={<RefreshControl refreshing={isSearching} onRefresh={() => fetchListings(true)} tintColor={currentThemeColors.primary} />}
           />
         ) : (
-          <ScrollView contentContainerStyle={styles.emptyContainer} refreshControl={<RefreshControl refreshing={isSearching} onRefresh={fetchListings} tintColor={currentThemeColors.primary} />}>
+          <ScrollView contentContainerStyle={styles.emptyContainer} refreshControl={<RefreshControl refreshing={isSearching} onRefresh={() => fetchListings(true)} tintColor={currentThemeColors.primary} />}>
             <Ionicons name="search-outline" size={60} color={currentThemeColors.text + '70'} />
             <ThemedText style={styles.emptyText}>No listings found for your search.</ThemedText>
           </ScrollView>
@@ -277,11 +270,21 @@ export default function ExploreScreen() {
               </View>
             </View>
 
+            {/* --- NEW: Area Filter --- */}
+            <View style={styles.modalSection}>
+              <Text style={[styles.filterLabel, { color: currentThemeColors.text }]}>Area (in sq. ft.)</Text>
+              <View style={styles.rentRangeContainer}>
+                <TextInput placeholder="Min Area" value={tempMinArea} onChangeText={setTempMinArea} keyboardType="numeric" style={[styles.rentInput, { borderColor: currentThemeColors.primary, color: currentThemeColors.text }]} placeholderTextColor={currentThemeColors.text + '80'}/>
+                <Text style={styles.rentSeparator}>-</Text>
+                <TextInput placeholder="Max Area" value={tempMaxArea} onChangeText={setTempMaxArea} keyboardType="numeric" style={[styles.rentInput, { borderColor: currentThemeColors.primary, color: currentThemeColors.text }]} placeholderTextColor={currentThemeColors.text + '80'}/>
+              </View>
+            </View>
+
             <View style={styles.modalSection}>
               <Text style={[styles.filterLabel, { color: currentThemeColors.text }]}>Property Type</Text>
               <View style={styles.filterOptionsContainer}>
                 {PROPERTY_TYPES.map((type) => (
-                  <TouchableOpacity key={type} style={[styles.filterButton, tempPropertyType === type ? { backgroundColor: currentThemeColors.primary } : {}, { borderColor: currentThemeColors.primary }]} onPress={() => setTempPropertyType(current => current === type ? null : type)}>
+                  <TouchableOpacity key={type} style={[styles.filterButton, tempPropertyType === type && { backgroundColor: currentThemeColors.primary }, { borderColor: currentThemeColors.primary }]} onPress={() => setTempPropertyType(current => current === type ? null : type)}>
                     <Text style={[styles.filterButtonText, tempPropertyType === type ? { color: '#FFFFFF' } : { color: currentThemeColors.primary }]}>{type}</Text>
                   </TouchableOpacity>
                 ))}
@@ -292,7 +295,7 @@ export default function ExploreScreen() {
               <Text style={[styles.filterLabel, { color: currentThemeColors.text }]}>Bedrooms</Text>
               <View style={styles.filterOptionsContainer}>
                 {[1, 2, 3, 4].map((num) => (
-                  <TouchableOpacity key={num} style={[styles.filterButton, tempBedrooms === num ? { backgroundColor: currentThemeColors.primary } : {}, { borderColor: currentThemeColors.primary }]} onPress={() => setTempBedrooms(current => current === num ? null : num)}>
+                  <TouchableOpacity key={num} style={[styles.filterButton, tempBedrooms === num && { backgroundColor: currentThemeColors.primary }, { borderColor: currentThemeColors.primary }]} onPress={() => setTempBedrooms(current => current === num ? null : num)}>
                     <Text style={[styles.filterButtonText, tempBedrooms === num ? { color: '#FFFFFF' } : { color: currentThemeColors.primary }]}>{num}{num === 4 ? '+' : ''}</Text>
                   </TouchableOpacity>
                 ))}
@@ -303,7 +306,7 @@ export default function ExploreScreen() {
               <Text style={[styles.filterLabel, { color: currentThemeColors.text }]}>Bathrooms</Text>
               <View style={styles.filterOptionsContainer}>
                 {[1, 2, 3].map((num) => (
-                  <TouchableOpacity key={num} style={[styles.filterButton, tempBathrooms === num ? { backgroundColor: currentThemeColors.primary } : {}, { borderColor: currentThemeColors.primary }]} onPress={() => setTempBathrooms(current => current === num ? null : num)}>
+                  <TouchableOpacity key={num} style={[styles.filterButton, tempBathrooms === num && { backgroundColor: currentThemeColors.primary }, { borderColor: currentThemeColors.primary }]} onPress={() => setTempBathrooms(current => current === num ? null : num)}>
                     <Text style={[styles.filterButtonText, tempBathrooms === num ? { color: '#FFFFFF' } : { color: currentThemeColors.primary }]}>{num}{num === 3 ? '+' : ''}</Text>
                   </TouchableOpacity>
                 ))}
@@ -314,12 +317,37 @@ export default function ExploreScreen() {
               <Text style={[styles.filterLabel, { color: currentThemeColors.text }]}>Furnishing</Text>
               <View style={styles.filterOptionsContainer}>
                 {FURNISHING_STATUSES.map((status) => (
-                  <TouchableOpacity key={status} style={[styles.filterButton, tempFurnishingStatus === status ? { backgroundColor: currentThemeColors.primary } : {}, { borderColor: currentThemeColors.primary }]} onPress={() => setTempFurnishingStatus(current => current === status ? null : status)}>
+                  <TouchableOpacity key={status} style={[styles.filterButton, tempFurnishingStatus === status && { backgroundColor: currentThemeColors.primary }, { borderColor: currentThemeColors.primary }]} onPress={() => setTempFurnishingStatus(current => current === status ? null : status)}>
                     <Text style={[styles.filterButtonText, tempFurnishingStatus === status ? { color: '#FFFFFF' } : { color: currentThemeColors.primary, textTransform: 'capitalize' }]}>{status}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
             </View>
+
+            {/* --- NEW: Amenities Filter --- */}
+            <View style={styles.modalSection}>
+              <Text style={[styles.filterLabel, { color: currentThemeColors.text }]}>Amenities</Text>
+              <View style={styles.filterOptionsContainer}>
+                {COMMON_AMENITIES.map((amenity) => (
+                  <TouchableOpacity key={amenity} style={[styles.filterButton, tempAmenities.includes(amenity) && { backgroundColor: currentThemeColors.primary }, { borderColor: currentThemeColors.primary }]} onPress={() => handleToggleTempAmenity(amenity)}>
+                    <Text style={[styles.filterButtonText, tempAmenities.includes(amenity) ? { color: '#FFFFFF' } : { color: currentThemeColors.primary }]}>{amenity}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* --- NEW: Preferred Tenants Filter --- */}
+            <View style={styles.modalSection}>
+              <Text style={[styles.filterLabel, { color: currentThemeColors.text }]}>Preferred Tenants</Text>
+              <View style={styles.filterOptionsContainer}>
+                {COMMON_TENANT_TYPES.map((tenant) => (
+                  <TouchableOpacity key={tenant} style={[styles.filterButton, tempPreferredTenants.includes(tenant) && { backgroundColor: currentThemeColors.primary }, { borderColor: currentThemeColors.primary }]} onPress={() => handleToggleTempTenant(tenant)}>
+                    <Text style={[styles.filterButtonText, tempPreferredTenants.includes(tenant) ? { color: '#FFFFFF' } : { color: currentThemeColors.primary }]}>{tenant}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
           </ScrollView>
 
           <View style={[styles.modalFooter, { borderTopColor: currentThemeColors.text + '20'}]}>

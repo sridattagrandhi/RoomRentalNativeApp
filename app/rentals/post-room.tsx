@@ -179,7 +179,9 @@ export default function PostRoomScreen() {
         'Your listing was saved successfully.',
         [{ 
           text: 'OK', 
-          onPress: () => router.replace({ 
+          // --- FIXED: Use router.push to navigate back ---
+          // This ensures the explore screen re-evaluates its focus state.
+          onPress: () => router.push({ 
             pathname: '/rentals/explore', 
             params: { city: params.city || city }
           }) 
@@ -242,7 +244,7 @@ export default function PostRoomScreen() {
           <TextInput style={[styles.input, { borderColor: theme.primary, color: theme.text, backgroundColor: theme.background }]} placeholder="e.g., Koregaon Park" placeholderTextColor={theme.text + '99'} value={locality} onChangeText={setLocality} />
 
           <ThemedText style={[styles.label, { color: theme.text }]}>City*</ThemedText>
-          <TextInput style={[styles.input, { borderColor: theme.primary, color: theme.text, backgroundColor: theme.background }]} placeholder="e.g., Mumbai" placeholderTextColor={theme.text + '99'} value={state} onChangeText={setCity} />
+          <TextInput style={[styles.input, { borderColor: theme.primary, color: theme.text, backgroundColor: theme.background }]} placeholder="e.g., Mumbai" placeholderTextColor={theme.text + '99'} value={city} onChangeText={setCity} />
           
           <ThemedText style={[styles.label, { color: theme.text }]}>State / Province*</ThemedText>
           <TextInput style={[styles.input, { borderColor: theme.primary, color: theme.text, backgroundColor: theme.background }]} placeholder="e.g., Maharashtra" placeholderTextColor={theme.text + '99'} value={state} onChangeText={setState} />

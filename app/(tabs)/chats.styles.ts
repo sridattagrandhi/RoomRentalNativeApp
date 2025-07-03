@@ -1,82 +1,87 @@
-import { StyleSheet, Platform } from 'react-native';
+// app/(tabs)/chats.styles.ts
+import { StyleSheet } from 'react-native';
 
 export const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-  },
-  container: { // For ThemedView
-    flex: 1,
-  },
-  listContainer: {
-    flex: 1,
-  },
-  listContentContainer: {
-    paddingVertical: 8,
-  },
-  chatItemContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    alignItems: 'center',
-    // borderBottomWidth: StyleSheet.hairlineWidth, // Optional separator
-  },
-  avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    marginRight: 12,
-    // backgroundColor will be themed (placeholder color)
-  },
-  textContainer: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  recipientName: {
-    fontSize: 17,
-    fontWeight: '500', // Medium weight
-    marginBottom: 3,
-  },
-  lastMessageText: {
-    fontSize: 14,
-    // color will be themed (muted)
-  },
-  metaContainer: {
-    alignItems: 'flex-end',
-    marginLeft: 8, // Space between text and meta info
-  },
-  timestamp: {
-    fontSize: 12,
-    marginBottom: 4,
-    // color will be themed (muted)
-  },
-  unreadBadge: {
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
-    paddingHorizontal: 6, // Add padding if count is > 9
-    justifyContent: 'center',
-    alignItems: 'center',
-    // backgroundColor will be themed (primary or accent)
-  },
-  unreadText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    // color will be themed (e.g., white)
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  emptyText: {
-    fontSize: 17,
-    textAlign: 'center',
-    // color will be themed
-  },
-  separator: {
-    height: StyleSheet.hairlineWidth,
-    marginLeft: 16 + 50 + 12, // Avatar width + margins
-    // backgroundColor will be themed
-  }
+    safeArea: { 
+        flex: 1 
+    },
+    emptyContainer: { 
+        flex: 1, 
+        justifyContent: 'center', 
+        alignItems: 'center',
+        padding: 20,
+    },
+    searchContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginHorizontal: 16,
+        marginVertical: 8,
+        paddingHorizontal: 12,
+        borderRadius: 10,
+        borderWidth: 1,
+        height: 44,
+    },
+    searchIcon: {
+        marginRight: 8,
+    },
+    searchInput: {
+        flex: 1,
+        fontSize: 16,
+    },
+    chatItemContainer: { 
+        flexDirection: 'row', 
+        paddingHorizontal: 16, 
+        paddingVertical: 12, 
+        alignItems: 'center' 
+    },
+    avatar: { 
+        width: 50, 
+        height: 50, 
+        borderRadius: 25, 
+        marginRight: 12, 
+        backgroundColor: '#eee' 
+    },
+    textContainer: { 
+        flex: 1, 
+        justifyContent: 'center' 
+    },
+    recipientName: { 
+        fontSize: 16, 
+        fontWeight: '600', 
+        marginBottom: 4 
+    },
+    lastMessageText: { 
+        fontSize: 14 
+    },
+    metaContainer: { 
+        alignItems: 'flex-end' 
+    },
+    timestamp: { 
+        fontSize: 12, 
+        marginBottom: 6 
+    },
+    unreadBadge: { 
+        minWidth: 22, 
+        height: 22, 
+        borderRadius: 11, 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        paddingHorizontal: 6 
+    },
+    unreadText: { 
+        color: 'white', 
+        fontSize: 12, 
+        fontWeight: 'bold' 
+    },
+    separator: { 
+        height: 1, 
+        marginLeft: 78, 
+        marginRight: 16 
+    },
+    emptyText: { 
+        fontSize: 18, 
+        fontWeight: '500', 
+        marginTop: 12,
+        textAlign: 'center',
+    },
 });
