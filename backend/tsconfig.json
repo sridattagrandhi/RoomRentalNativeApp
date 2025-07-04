@@ -19,7 +19,7 @@
   },
   "include": [
     "src/**/*"    // This ensures TS “sees” all .ts/.d.ts files under src
-  ],
+, "config"  ],
   "exclude": [
     "node_modules",
     "dist"

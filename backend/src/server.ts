@@ -6,19 +6,23 @@ import dotenv from 'dotenv';
 import admin from 'firebase-admin';
 import http from 'http';
 import { Server as IOServer, Socket } from 'socket.io';
+// --- FIXED: Updated the import path to reflect the new location ---
+import configureCloudinary from './config/cloudinaryConfig';
 
 import authRoutes from './routes/authRoutes';
 import listingRoutes from './routes/listingRoutes';
 import chatRoutes from './routes/chatRoutes';
 import User from './models/User';
 import userRoutes from './routes/userRoutes';
+import uploadRoutes from './routes/uploadRoutes';
 
 dotenv.config();
+configureCloudinary();
 
 const app: Express = express();
 const PORT = process.env.PORT || 5001;
 
-// Firebase Admin initialization... (no changes here)
+// Firebase Admin initialization...
 try {
   if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
     admin.initializeApp({
@@ -49,6 +53,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/listings', listingRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/upload', uploadRoutes);
 
 
 io.use(async (socket: Socket, next) => {

@@ -13,15 +13,45 @@ import { useAuth } from '../../context/AuthContext';
 import { Colors } from '../../constants/Colors';
 import { useColorScheme } from '../../hooks/useColorScheme';
 import ThemedText from '../../components/ThemedText';
-import { findListingById } from '../../constants/Data';
+import { Listing } from '../../constants/Types';
 
 const BASE_URL = Platform.OS === 'android' ? 'http://10.0.2.2:5001' : 'http://localhost:5001';
-
-// A predefined list of cities stored directly in the app
 const CITIES = ["Mumbai", "Delhi", "Bangalore", "Hyderabad", "Pune", "Chennai", "Kolkata"];
 
-const uploadImageAndGetUrl = async (uri: string): Promise<string> =>
-  new Promise(resolve => setTimeout(() => resolve(uri), 300));
+const uploadImagesAndGetUrls = async (uris: string[], token: string): Promise<string[]> => {
+  const formData = new FormData();
+  
+  uris.forEach((uri) => {
+    const file = {
+      uri,
+      name: uri.split('/').pop(),
+      type: `image/${uri.split('.').pop()}`,
+    } as any;
+    formData.append('images', file);
+  });
+
+  const response = await fetch(`${BASE_URL}/api/upload`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${token}` },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    let errorMessage = `Image upload failed with status: ${response.status}`;
+    try {
+      const errorData = await response.json();
+      errorMessage = errorData.message || errorMessage;
+    } catch (e) {
+      const textError = await response.text();
+      console.error("Non-JSON error from image upload:", textError);
+    }
+    throw new Error(errorMessage);
+  }
+
+  const { imageUrls } = await response.json();
+  return imageUrls;
+};
+
 
 export default function PostRoomScreen() {
   const router = useRouter();
@@ -33,12 +63,11 @@ export default function PostRoomScreen() {
 
   const [isLoading, setIsLoading] = useState(isEditMode);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
   const [title, setTitle] = useState('');
   const [rent, setRent] = useState('');
   const [street, setStreet] = useState('');
   const [locality, setLocality] = useState('');
-  const [city, setCity] = useState(params.city || CITIES[0]); // Default to the first city
+  const [city, setCity] = useState(params.city || CITIES[0]);
   const [state, setState] = useState('');
   const [postalCode, setPostalCode] = useState('');
   const [type, setType] = useState('');
@@ -65,11 +94,14 @@ export default function PostRoomScreen() {
       setIsLoading(false);
       return;
     }
-    (async () => {
+    const fetchListingForEdit = async () => {
       setIsLoading(true);
       try {
-        const existing = findListingById(editingListingId); 
-        if (!existing) throw new Error('Listing not found');
+        const res = await fetch(`${BASE_URL}/api/listings/${editingListingId}`);
+        if (!res.ok) {
+          throw new Error('Could not load listing data for editing.');
+        }
+        const existing: Listing = await res.json();
         
         setTitle(existing.title);
         setRent(existing.rent.toString());
@@ -87,25 +119,24 @@ export default function PostRoomScreen() {
         setFurnishingStatus(existing.furnishingStatus);
         setAmenitiesInput((existing.amenities || []).join(', '));
         setPreferredTenantsInput((existing.preferredTenants || []).join(', '));
-        setDescription(existing.description);
+        setDescription(existing.description || '');
         setAdditionalInfo(existing.additionalInfo || '');
         setSelectedImages(existing.imageUris || [existing.image]);
         setIsAvailable(existing.isAvailable ?? true);
-      } catch {
-        Alert.alert('Error','Could not load listing data for editing.');
+      } catch (err: any) {
+        Alert.alert('Error', err.message || 'Could not load listing data for editing.');
         router.back();
       } finally {
         setIsLoading(false);
       }
-    })();
-  },[isEditMode,editingListingId]);
+    };
+    fetchListingForEdit();
+  }, [isEditMode, editingListingId]);
 
   const pickImageAsync = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission Denied','We need access to your photos.');
-      return;
-    }
+    if (status !== 'granted') return Alert.alert('Permission Denied','We need access to your photos.');
+    
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 0.6,
@@ -121,25 +152,32 @@ export default function PostRoomScreen() {
   };
 
   const handleSubmit = async () => {
-    if (!title || !rent || !street || !locality || !city || !state || !postalCode || !type || !bedrooms || !bathrooms || !furnishingStatus || !description) {
-      Alert.alert('Missing Fields','Please fill in all required fields.');
-      return;
+    if (!title || !rent || !street || !locality || !city || !state || !postalCode || !type || !bedrooms || !bathrooms || !furnishingStatus) {
+      return Alert.alert('Missing Fields','Please fill in all required fields.');
     }
     if (selectedImages.length === 0) {
-      Alert.alert('Missing Image','Please add at least one photo.');
-      return;
+      return Alert.alert('Missing Image','Please add at least one photo.');
     }
     if (!user) {
-      Alert.alert('Not Authenticated','Please log in first.');
-      return;
+      return Alert.alert('Not Authenticated','Please log in first.');
     }
 
     setIsSubmitting(true);
     try {
       const token = await user.getIdToken();
-      const imageUris = await Promise.all(
-        selectedImages.map(u => u.startsWith('http') ? u : uploadImageAndGetUrl(u))
-      );
+      
+      const localImageUris = selectedImages.filter(uri => uri.startsWith('file://'));
+      const existingImageUrls = selectedImages.filter(uri => uri.startsWith('http'));
+      
+      let uploadedImageUrls: string[] = [];
+      if (localImageUris.length > 0) {
+        uploadedImageUrls = await uploadImagesAndGetUrls(localImageUris, token);
+      }
+
+      const allImageUrls = [...existingImageUrls, ...uploadedImageUrls];
+      if (allImageUrls.length === 0) {
+        throw new Error("No images were uploaded or saved.");
+      }
 
       const payload = {
         title,
@@ -152,8 +190,8 @@ export default function PostRoomScreen() {
         furnishingStatus,
         description,
         additionalInfo,
-        image: imageUris[0],
-        imageUris,
+        image: allImageUrls[0],
+        imageUris: allImageUrls,
         isAvailable,
         amenities: amenitiesInput.split(',').map(s => s.trim()).filter(Boolean),
         preferredTenants: preferredTenantsInput.split(',').map(s => s.trim()).filter(Boolean),
@@ -166,12 +204,16 @@ export default function PostRoomScreen() {
         body: JSON.stringify(payload),
       });
 
-      const txt = await res.text();
       if (!res.ok) {
-        let msg: string;
-        try { msg = JSON.parse(txt).message; }
-        catch { msg = txt; }
-        throw new Error(msg);
+        let errorMessage = `Failed to save listing. Server responded with status: ${res.status}`;
+        try {
+            const errorData = await res.json();
+            errorMessage = errorData.message || errorMessage;
+        } catch(e) {
+            const textError = await res.text();
+            console.error("Non-JSON error response from listing save:", textError);
+        }
+        throw new Error(errorMessage);
       }
 
       Alert.alert(
@@ -179,9 +221,8 @@ export default function PostRoomScreen() {
         'Your listing was saved successfully.',
         [{ 
           text: 'OK', 
-          // --- FIXED: Use router.push to navigate back ---
-          // This ensures the explore screen re-evaluates its focus state.
-          onPress: () => router.push({ 
+          // --- FIXED: Use router.replace to correct the navigation history ---
+          onPress: () => router.replace({ 
             pathname: '/rentals/explore', 
             params: { city: params.city || city }
           }) 
@@ -210,10 +251,7 @@ export default function PostRoomScreen() {
         style={{ flex: 1 }}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
       >
-        <ScrollView
-          contentContainerStyle={styles.scrollContentContainer}
-          keyboardShouldPersistTaps="handled"
-        >
+        <ScrollView contentContainerStyle={styles.scrollContentContainer} keyboardShouldPersistTaps="handled">
           <ThemedText style={[styles.pageTitle, { color: theme.text }]}>{isEditMode ? 'Update Listing' : 'Create New Listing'}</ThemedText>
           
           <ThemedText style={[styles.label, { color: theme.text }]}>Photos (first is main)*</ThemedText>
@@ -292,7 +330,7 @@ export default function PostRoomScreen() {
             </TouchableOpacity>
           </View>
           
-          <ThemedText style={[styles.label, { color: theme.text }]}>Description*</ThemedText>
+          <ThemedText style={[styles.label, { color: theme.text }]}>Description</ThemedText>
           <TextInput style={[styles.input, { borderColor: theme.primary, color: theme.text, backgroundColor: theme.background, height: 100, textAlignVertical: 'top', paddingTop: 15 }]} placeholder="Describe your property..." placeholderTextColor={theme.text + '99'} value={description} onChangeText={setDescription} multiline />
           
           <ThemedText style={[styles.label, { color: theme.text }]}>Additional Info (optional)</ThemedText>
