@@ -196,7 +196,7 @@ export default function ProfileScreen() {
         >
           <TouchableOpacity onPress={pickAsync} style={styles.avatarContainer}>
             <Image
-              source={uri ? { uri } : require('../../assets/images/avatar.jpg')}
+              source={uri ? { uri } : require('../../assets/images/avatar.png')}
               style={[styles.profileImage, { borderColor: theme.primary }]}
             />
             <View style={styles.cameraIconOverlay}>

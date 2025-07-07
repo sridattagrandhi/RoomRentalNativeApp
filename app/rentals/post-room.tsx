@@ -15,7 +15,15 @@ import { useColorScheme } from '../../hooks/useColorScheme';
 import ThemedText from '../../components/ThemedText';
 import { Listing } from '../../constants/Types';
 
-const BASE_URL = Platform.OS === 'android' ? 'http://10.0.2.2:5001' : 'http://localhost:5001';
+// --- Using the robust BASE_URL definition ---
+const DEV_SERVER_URL = process.env.EXPO_PUBLIC_DEV_URL;
+const PRODUCTION_SERVER_URL = 'https://your-production-api.com'; // Replace with your actual deployed server URL
+
+const BASE_URL = __DEV__
+  ? Platform.OS === 'android' ? 'http://10.0.2.2:5001' : DEV_SERVER_URL
+  : PRODUCTION_SERVER_URL;
+// ---------------------------------------------
+
 const CITIES = ["Mumbai", "Delhi", "Bangalore", "Hyderabad", "Pune", "Chennai", "Kolkata"];
 
 const uploadImagesAndGetUrls = async (uris: string[], token: string): Promise<string[]> => {
@@ -139,7 +147,7 @@ export default function PostRoomScreen() {
     
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.6,
+      quality: 0.4,
       allowsMultipleSelection: true,
     });
     if (!result.canceled && result.assets) {
@@ -221,7 +229,6 @@ export default function PostRoomScreen() {
         'Your listing was saved successfully.',
         [{ 
           text: 'OK', 
-          // --- FIXED: Use router.replace to correct the navigation history ---
           onPress: () => router.replace({ 
             pathname: '/rentals/explore', 
             params: { city: params.city || city }
@@ -302,7 +309,7 @@ export default function PostRoomScreen() {
           <ThemedText style={[styles.label, { color: theme.text }]}>Bathrooms*</ThemedText>
           <TextInput style={[styles.input, { borderColor: theme.primary, color: theme.text, backgroundColor: theme.background }]} placeholder="e.g., 1" placeholderTextColor={theme.text + '99'} value={bathrooms} onChangeText={setBathrooms} keyboardType="numeric" />
 
-          <ThemedText style={[styles.label, { color: theme.text }]}>Area (sq ft)</ThemedText>
+          <ThemedText style={[styles.label, { color: theme.text }]}>Area (sq ft)*</ThemedText>
           <TextInput style={[styles.input, { borderColor: theme.primary, color: theme.text, backgroundColor: theme.background }]} placeholder="e.g., 1200" placeholderTextColor={theme.text + '99'} value={areaSqFt} onChangeText={setAreaSqFt} keyboardType="numeric" />
 
           <ThemedText style={[styles.label, { color: theme.text }]}>Furnishing Status*</ThemedText>
@@ -310,17 +317,23 @@ export default function PostRoomScreen() {
             <Text style={{ color: furnishingStatus ? theme.text : theme.text + '50' }}>{furnishingStatus ? furnishingStatusLabels[furnishingStatus] : 'Pick an option...'}</Text>
           </TouchableOpacity>
           {showFurnishingPicker && (
-            <Picker selectedValue={furnishingStatus || ''} onValueChange={v => { setFurnishingStatus(v as any); setShowFurnishingPicker(false); }}>
+            <Picker 
+              selectedValue={furnishingStatus || ''} 
+              onValueChange={v => { setFurnishingStatus(v as any); setShowFurnishingPicker(false); }}
+              // --- ✅ ADDED THIS STYLE TO FIX THE COLOR ---
+              itemStyle={{ color: theme.text, backgroundColor: theme.background }}
+            >
+              <Picker.Item label="Pick an option..." value="" enabled={false} />
               <Picker.Item label="Unfurnished" value="unfurnished" />
               <Picker.Item label="Semi-furnished" value="semi-furnished" />
               <Picker.Item label="Furnished" value="furnished" />
             </Picker>
           )}
 
-          <ThemedText style={[styles.label, { color: theme.text }]}>Amenities (comma-separated)</ThemedText>
+          <ThemedText style={[styles.label, { color: theme.text }]}>Amenities (comma-separated)*</ThemedText>
           <TextInput style={[styles.input, { borderColor: theme.primary, color: theme.text, backgroundColor: theme.background }]} placeholder="e.g., WiFi, AC, Parking" placeholderTextColor={theme.text + '99'} value={amenitiesInput} onChangeText={setAmenitiesInput} />
 
-          <ThemedText style={[styles.label, { color: theme.text }]}>Preferred Tenants (comma-separated)</ThemedText>
+          <ThemedText style={[styles.label, { color: theme.text }]}>Preferred Tenants (comma-separated)*</ThemedText>
           <TextInput style={[styles.input, { borderColor: theme.primary, color: theme.text, backgroundColor: theme.background }]} placeholder="e.g., Bachelors, Family" placeholderTextColor={theme.text + '99'} value={preferredTenantsInput} onChangeText={setPreferredTenantsInput} />
 
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
@@ -330,7 +343,7 @@ export default function PostRoomScreen() {
             </TouchableOpacity>
           </View>
           
-          <ThemedText style={[styles.label, { color: theme.text }]}>Description</ThemedText>
+          <ThemedText style={[styles.label, { color: theme.text }]}>Description*</ThemedText>
           <TextInput style={[styles.input, { borderColor: theme.primary, color: theme.text, backgroundColor: theme.background, height: 100, textAlignVertical: 'top', paddingTop: 15 }]} placeholder="Describe your property..." placeholderTextColor={theme.text + '99'} value={description} onChangeText={setDescription} multiline />
           
           <ThemedText style={[styles.label, { color: theme.text }]}>Additional Info (optional)</ThemedText>

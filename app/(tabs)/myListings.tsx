@@ -26,7 +26,7 @@ import { useColorScheme } from '../../hooks/useColorScheme';
 import { Listing } from '../../constants/Types';
 
 const BASE_URL =
-  Platform.OS === 'android' ? 'http://10.0.2.2:5001' : 'http://localhost:5001';
+  Platform.OS === 'android' ? 'http://10.0.2.2:5001' : process.env.EXPO_PUBLIC_DEV_URL;
 
 export default function MyListingsScreen() {
   const router = useRouter();

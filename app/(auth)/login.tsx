@@ -157,7 +157,7 @@ export default function LoginScreen() {
               <Text style={[styles.linkText, { color: theme.text + "AA" }]}>
                 Don't have an account?
               </Text>
-              <Link href="/(auth)/signup" asChild>
+              <Link href="/(auth)/signup" replace asChild>
                 <TouchableOpacity disabled={isLoading}>
                   <Text style={[styles.linkActionText, { color: theme.primary, opacity: isLoading ? 0.7 : 1 }]}>
                     Sign Up

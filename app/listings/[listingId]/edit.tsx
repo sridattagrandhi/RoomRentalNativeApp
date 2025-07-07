@@ -28,7 +28,7 @@ const windowWidth = Dimensions.get('window').width;
 const BASE_URL =
   Platform.OS === 'android'
     ? 'http://10.0.2.2:5001'
-    : 'http://localhost:5001';
+    : process.env.EXPO_PUBLIC_DEV_URL;
 
 // Typed helper component for form fields
 interface EditableFieldProps extends TextInputProps {

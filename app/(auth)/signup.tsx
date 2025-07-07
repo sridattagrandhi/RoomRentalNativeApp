@@ -38,7 +38,6 @@ export default function SignupScreen() {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSignup = async () => {
-    // 1) Basic validation
     if (!name.trim() || !email.trim() || !password || !confirmPassword) {
       Alert.alert("Missing Information", "Please fill in all fields.");
       return;
@@ -54,20 +53,12 @@ export default function SignupScreen() {
 
     setIsLoading(true);
     try {
-      // 2) Create the user in Firebase
       const userCred = await createUserWithEmailAndPassword(
         FIREBASE_AUTH,
         email.trim(),
         password
       );
-      // 3) Set their displayName
       await updateProfile(userCred.user, { displayName: name.trim() });
-
-      // 4) **No manual context update here**:
-      //    AuthProvider’s onAuthStateChanged will see the new user,
-      //    call your /sync-user endpoint and populate mongoUser in context.
-
-      // 5) Navigate into your app (tabs layout)
       router.replace("/"); 
     } catch (error: any) {
       console.error("Signup error:", error);
@@ -102,12 +93,13 @@ export default function SignupScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.container}>
-            <Ionicons
-              name="person-add-outline"
-              size={80}
-              color={theme.primary}
-              style={styles.logoContainer}
-            />
+            <View style={styles.logoContainer}>
+              <Ionicons
+                name="person-add-outline"
+                size={80}
+                color={theme.primary}
+              />
+            </View>
             <Text style={[styles.title, { color: theme.text }]}>
               Create Account
             </Text>
@@ -231,6 +223,7 @@ export default function SignupScreen() {
                 color={theme.text + "99"}
                 style={styles.inputIcon}
               />
+              {/* --- ✅ FIXED: Using the correct state for Confirm Password --- */}
               <TextInput
                 style={[styles.input, { color: theme.text }]}
                 placeholder="Confirm Password"
@@ -281,7 +274,7 @@ export default function SignupScreen() {
               <Text style={[styles.linkText, { color: theme.text + "AA" }]}>
                 Already have an account?
               </Text>
-              <Link href="/(auth)/login" asChild>
+              <Link href="/(auth)/login" replace asChild>
                 <TouchableOpacity disabled={isLoading}>
                   <Text
                     style={[

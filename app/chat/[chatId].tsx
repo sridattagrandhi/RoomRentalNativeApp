@@ -43,13 +43,15 @@ const groupMessagesByDate = (messages: Message[]): ChatListItemData[] => {
   return grouped;
 };
 
-const PC_IP = '192.168.0.42';
 
-export const BASE_URL = Platform.select({
-  android: 'http://10.0.2.2:5001',
-  ios:    __DEV__ ? 'http://localhost:5001' : `http://${PC_IP}:5001`,
-  default:`http://${PC_IP}:5001`,
-});
+
+const DEV_SERVER_URL = process.env.EXPO_PUBLIC_DEV_URL;
+const PRODUCTION_SERVER_URL = 'https://your-production-api.com'; // <-- Use your actual deployed server URL here
+
+// Use a simple check for the development environment (__DEV__)
+export const BASE_URL = __DEV__
+  ? Platform.OS === 'android' ? 'http://10.0.2.2:5001' : DEV_SERVER_URL
+  : PRODUCTION_SERVER_URL;
 
 export default function ChatScreen() {
   const router = useRouter();

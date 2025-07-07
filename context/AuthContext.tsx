@@ -4,6 +4,15 @@ import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { FIREBASE_AUTH } from '../constants/firebaseConfig';
 import { Platform } from 'react-native';
 
+// --- ✅ CORRECTED BASE_URL DEFINITION ---
+const DEV_SERVER_URL = process.env.EXPO_PUBLIC_DEV_URL;
+const PRODUCTION_SERVER_URL = 'https://your-production-api.com'; // Replace with your actual deployed server URL
+
+const BASE_URL = __DEV__
+  ? Platform.OS === 'android' ? 'http://10.0.2.2:5001' : DEV_SERVER_URL
+  : PRODUCTION_SERVER_URL;
+// -----------------------------------------
+
 interface AuthContextType {
   firebaseUser: FirebaseUser | null;
   mongoUser: any | null;
@@ -17,11 +26,6 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 export const useAuth = () => useContext(AuthContext);
-
-const BASE_URL =
-  Platform.OS === 'android'
-    ? 'http://10.0.2.2:5001'
-    : 'http://localhost:5001';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
@@ -45,11 +49,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (resp.ok) {
             setMongoUser(data.userData || null);
           } else {
-            console.warn('Sync failed:', data);
+            console.warn('[AuthContext] Sync failed:', data);
             setMongoUser(null);
           }
         } catch (err) {
-          console.error('Sync error:', err);
+          console.error('[AuthContext] Sync error:', err);
           setMongoUser(null);
         }
       } else {
@@ -62,7 +66,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <AuthContext.Provider value={{ firebaseUser, mongoUser, isLoading }}>
-      {!isLoading && children}
+      {children}
     </AuthContext.Provider>
   );
 };

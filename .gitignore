@@ -44,4 +44,6 @@ backend/config/firebaseServiceAccountKey.json
 
 constants/firebaseConfig.ts
 
+.env
+
 app-example

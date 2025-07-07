@@ -28,13 +28,27 @@ import { useColorScheme } from '../../hooks/useColorScheme';
 import { styles } from './explore.styles';
 
 // --- NEW: Constants for multi-select filters ---
-const COMMON_AMENITIES = ['WiFi', 'AC', 'Parking', 'Kitchen', 'Washing Machine', 'TV'];
+const COMMON_AMENITIES = ['Wi-Fi',
+  'Kitchen',
+  'Air Conditioning',
+  'Heating',
+  'Washer',
+  'Dryer',
+  'Free Parking',
+  'TV',
+  'Dedicated Workspace',
+  'Self Check-in',
+  'Pet-Friendly',
+  'Pool',
+  'Hot Tub',
+  'Gym',
+  'Smoke Detector',];
 const COMMON_TENANT_TYPES = ['Bachelors', 'Family', 'Students', 'Professionals'];
 
 // Constants for filter options
 const FURNISHING_STATUSES = ['furnished', 'semi-furnished', 'unfurnished'];
 const PROPERTY_TYPES = ['Apartment', 'House', 'PG', 'Room'];
-const BASE_URL = Platform.OS === 'android' ? 'http://10.0.2.2:5001' : 'http://localhost:5001';
+const BASE_URL = Platform.OS === 'android' ? 'http://10.0.2.2:5001' : process.env.EXPO_PUBLIC_DEV_URL;
 
 export default function ExploreScreen() {
   const router = useRouter();
