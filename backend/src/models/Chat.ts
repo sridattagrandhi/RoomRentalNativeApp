@@ -12,6 +12,7 @@ export interface IChat extends Document {
     sender: Types.ObjectId;
   };
   unreadCountByUser: Map<string, number>;
+  hiddenBy: Types.ObjectId[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -38,6 +39,10 @@ const ChatSchema = new Schema<IChat>(
         type: Schema.Types.Mixed,
         default: {},
       },
+      hiddenBy: [{
+        type: Schema.Types.ObjectId,
+        ref: 'User'
+    }],
   },
   { timestamps: true }
 );

@@ -25,7 +25,7 @@ export const getThreads = async (
       return;
     }
 
-    const threads = await Chat.find({ participants: me._id })
+    const threads = await Chat.find({ participants: me._id, hiddenBy: { $ne: me._id } })
       .populate('participants', 'name profileImageUrl firebaseUID')
       // This is a nested populate. It gets the listing, and within that,
       // it gets the owner and selects their firebaseUID.
@@ -250,3 +250,63 @@ export const postMessage = async (
       next(err);
     }
   };
+
+  export const deleteThread = async (
+    req: IRequest,
+    res: Response,
+    next: NextFunction
+): Promise<void> => {
+    try {
+        const me = await User.findOne({ firebaseUID: req.user!.uid });
+        if (!me) {
+          res.status(404).json({ message: 'User not found' });
+          return;
+        }
+
+        const { chatId } = req.params;
+        if (!Types.ObjectId.isValid(chatId)) {
+          res.status(400).json({ message: 'Invalid chat ID' });
+          return;
+        }
+
+        const chat = await Chat.findOne({
+            _id: chatId,
+            participants: me._id
+        });
+        
+        if (!chat) {
+          res.status(404).json({ message: 'Chat not found or access denied.' });
+          return;
+        }
+
+        // --- NEW LOGIC: CHECK IF THE OTHER USER HAS ALREADY DELETED ---
+        const otherParticipantId = chat.participants.find(pId => !pId.equals(me._id));
+        const isAlreadyHiddenByOther = otherParticipantId ? chat.hiddenBy.includes(otherParticipantId) : false;
+
+        if (isAlreadyHiddenByOther) {
+            // This is the HARD DELETE path. The other user already hid it,
+            // so we will now permanently delete the chat and its messages.
+            console.log(`Hard deleting chat ${chatId} as both users have deleted it.`);
+            
+            // 1. Delete all messages associated with the chat
+            await Message.deleteMany({ chatId: chat._id });
+            
+            // 2. Delete the chat document itself
+            await Chat.findByIdAndDelete(chat._id);
+
+        } else {
+            // This is the SOFT DELETE path. The other user has not hidden it yet,
+            // so we just add the current user to the hiddenBy list.
+            await Chat.updateOne(
+                { _id: chatId },
+                { $addToSet: { hiddenBy: me._id } }
+            );
+        }
+
+        res.status(204).send(); // Success, no content for both cases
+
+    } catch(err) {
+        console.error('Error deleting thread:', err);
+        next(err);
+    }
+};

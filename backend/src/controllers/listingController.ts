@@ -2,6 +2,13 @@ import { Request, Response, NextFunction } from 'express';
 import User from '../models/User';
 import Listing from '../models/Listing'; // Assuming this is your Mongoose model
 import { Types } from 'mongoose';
+import { v2 as cloudinary } from 'cloudinary';
+
+
+const getPublicIdFromUrl = (url: string): string | null => {
+  const match = url.match(/upload\/(?:v\d+\/)?([^\.]+)/);
+  return match ? match[1] : null;
+};
 
 // Controller to create a new listing (Protected)
 export const createListing = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -197,44 +204,62 @@ export const deleteListing = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    // 1) Ensure authenticated
+    // 1 & 2. Authentication & User lookup
     const firebaseUid = req.user?.uid;
-    if (!firebaseUid) {
-      res.status(401).json({ message: 'Not authorized' });
-      return;
-    }
-
-    // 2) Lookup our app user
     const user = await User.findOne({ firebaseUID: firebaseUid });
     if (!user) {
-      res.status(404).json({ message: 'User not found' });
+      res.status(401).json({ message: 'User not found or not authorized' });
       return;
     }
 
-    // 3) Validate listingId param
+    // 3 & 4. Validate ID and fetch the listing
     const { id } = req.params;
     if (!Types.ObjectId.isValid(id)) {
       res.status(400).json({ message: 'Invalid listing ID' });
       return;
     }
-
-    // 4) Fetch the listing
     const listing = await Listing.findById(id);
     if (!listing) {
       res.status(404).json({ message: 'Listing not found' });
       return;
     }
 
-    // 5) Ownership check
+    // 5. Ownership check
     if (listing.owner.toString() !== user.id) {
       res.status(403).json({ message: 'You can only delete your own listings.' });
       return;
     }
 
-    // 6) Delete it
+    // --- 3. NEW: Delete images from Cloudinary BEFORE deleting the DB record ---
+    try {
+      // a. Gather all image public IDs associated with the listing
+      const publicIds: string[] = [];
+      if (listing.image) {
+        const publicId = getPublicIdFromUrl(listing.image);
+        if (publicId) publicIds.push(publicId);
+      }
+      if (listing.imageUris && listing.imageUris.length > 0) {
+        listing.imageUris.forEach(uri => {
+          const publicId = getPublicIdFromUrl(uri);
+          if (publicId) publicIds.push(publicId);
+        });
+      }
+
+      // b. If there are any IDs, tell Cloudinary to delete them
+      if (publicIds.length > 0) {
+        console.log(`Deleting ${publicIds.length} images from Cloudinary...`);
+        // Use `api.delete_resources` for bulk deletion
+        await cloudinary.api.delete_resources(publicIds);
+      }
+    } catch (cloudinaryError) {
+      // Log the error, but don't block the listing deletion from our DB
+      console.error('Cloudinary deletion failed, but proceeding with DB deletion:', cloudinaryError);
+    }
+    
+    // 6. Delete the listing from MongoDB
     await listing.deleteOne();
 
-    // 7) Return success
+    // 7. Return success
     res.status(204).end();
   } catch (err) {
     console.error('Failed to delete listing:', err);
