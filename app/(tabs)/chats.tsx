@@ -16,6 +16,8 @@ import { Stack, useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import io, { Socket } from 'socket.io-client';
 import { GestureHandlerRootView, Swipeable, RectButton } from 'react-native-gesture-handler';
+import * as Notifications from 'expo-notifications';
+import { getExpoPushTokenAsync } from 'expo-notifications';
 
 import { useAuth } from '../../context/AuthContext';
 import { Colors } from '../../constants/Colors';
@@ -79,6 +81,7 @@ export default function ChatsScreen() {
 
   useFocusEffect(useCallback(() => { loadChats(); }, [loadChats]));
 
+  // --- MODIFICATION: Separate useEffect for WebSocket logic ---
   useEffect(() => {
     if (!firebaseUser) return;
     firebaseUser.getIdToken().then(token => {
@@ -90,6 +93,48 @@ export default function ChatsScreen() {
     });
     return () => { socketRef.current?.disconnect(); };
   }, [firebaseUser, loadChats]);
+  // --- END OF MODIFICATION ---
+
+  // --- NEW: useEffect to handle Push Notifications logic ---
+  useEffect(() => {
+    const registerForPushNotifications = async () => {
+      if (!firebaseUser) return; // Wait for the user to be authenticated
+
+      let token;
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+
+      if (existingStatus !== 'granted') {
+          const { status } = await Notifications.requestPermissionsAsync();
+          finalStatus = status;
+      }
+
+      if (finalStatus !== 'granted') {
+          Alert.alert('Permission Denied', 'Failed to get push token for push notifications!');
+          return;
+      }
+
+      try {
+        token = (await getExpoPushTokenAsync()).data;
+        console.log('Push Token:', token);
+
+        const idToken = await firebaseUser.getIdToken();
+        await fetch(`${BASE_URL}/api/users/push-token`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${idToken}`,
+            },
+            body: JSON.stringify({ token }),
+        });
+      } catch (err) {
+        console.error('Failed to send push token to backend', err);
+      }
+    };
+
+    registerForPushNotifications();
+  }, [firebaseUser]);
+  // --- END OF NEW ---
 
   const handleDelete = async (chatId: string) => {
     Alert.alert(
@@ -184,7 +229,6 @@ export default function ChatsScreen() {
               const titleToDisplay = isMeTheOwner ? item.recipientName : item.listingTitle || 'Conversation';
               const subtitleToDisplay = isMeTheOwner ? `Listing: ${item.listingTitle}` : `From: ${item.recipientName}`;
 
-              // --- ✅ FIXED: Using a simpler, known-correct placeholder image ---
               const avatarSource = item.recipientAvatar 
                 ? { uri: item.recipientAvatar } 
                 : require('../../assets/images/avatar.png');

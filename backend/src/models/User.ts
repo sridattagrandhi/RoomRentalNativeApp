@@ -11,7 +11,8 @@ export interface IUser extends Document {
   profileImageUrl?: string;
   createdAt?: Date;
   updatedAt?: Date;
-  wishlist: Types.ObjectId[]; // <-- ADD THIS LINE
+  wishlist: Types.ObjectId[];
+  pushToken?: string; 
 }
 
 const UserSchema: Schema = new Schema(
@@ -45,6 +46,7 @@ const UserSchema: Schema = new Schema(
     profileImageUrl: {
       type: String,
     },
+    pushToken: { type: String },
     wishlist: [{
       type: Schema.Types.ObjectId,
       ref: 'Listing'

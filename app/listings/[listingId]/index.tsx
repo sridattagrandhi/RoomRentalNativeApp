@@ -14,6 +14,7 @@ import {
   TouchableOpacity,
   Alert,
   Linking,
+  Share, // <-- Added Share here
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -35,7 +36,7 @@ export default function ListingView() {
   }>();
   const router = useRouter();
   const theme = Colors[useColorScheme() || 'light'];
-  const { firebaseUser } = useAuth();
+  const { firebaseUser, isLoading } = useAuth(); // <-- Added isLoading state
 
   const [listing, setListing] = useState<Listing | null>(null);
   const [loading, setLoading] = useState(true);
@@ -57,7 +58,50 @@ export default function ListingView() {
     }
   }, [listingId]);
 
-  useEffect(() => { fetchListing(); }, [fetchListing]);
+  // --- MODIFICATION: Handle deep linking and authentication here ---
+  useEffect(() => {
+    // Wait until the authentication state is no longer loading
+    if (isLoading) {
+      return;
+    }
+
+    // If the user is not authenticated, redirect to the login page
+    // The router.replace() prevents the user from navigating back to this unauthenticated page
+    if (!firebaseUser) {
+      router.replace({
+        pathname: '/login',
+        params: { redirectTo: `/listings/${listingId}` },
+      });
+    } else {
+      // If the user is authenticated, proceed with fetching the listing data
+      fetchListing();
+    }
+  }, [firebaseUser, isLoading, fetchListing, listingId, router]);
+  // --- END OF MODIFICATION ---
+
+  // --- MODIFICATION: The Share button logic ---
+  const handleSharePress = async () => {
+    try {
+      // The `listing` state variable will be available here because of the useEffect logic
+      // It handles the case where the component is rendered directly from a deep link
+      if (!listing) {
+        Alert.alert('Error', 'Listing data is not available to share.');
+        return;
+      }
+
+      const listingUrl = `https://your-app-domain.com/listings/${listingId}`;
+      const message = `Check out this listing: ${listing?.title}\n\n${listingUrl}`;
+
+      await Share.share({
+        message: message,
+        url: listingUrl,
+        title: listing?.title,
+      });
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to share listing.');
+    }
+  };
+  // --- END OF MODIFICATION ---
 
   const handleLocationPress = () => {
     if (!listing?.address) return;
@@ -86,10 +130,9 @@ export default function ListingView() {
   const images = (listing.imageUris?.length ?? 0) > 0 ? listing.imageUris! : [listing.image || 'https://placehold.co/600x400'];
   const ownerObj = typeof listing.owner === 'object' ? (listing.owner as UserProfile) : undefined;
   const ownerId = ownerObj?._id || ownerObj?.id;
-  
-  const isOwner = ownerObj?.firebaseUID === firebaseUser?.uid; //
-  // MODIFICATION: Hide chat button if user is owner, or is coming from 'myListings' or 'edit' screens.
-  const showChat = !isOwner && from !== 'myListings' && from !== 'edit'; //
+
+  const isOwner = ownerObj?.firebaseUID === firebaseUser?.uid;
+  const showChat = !isOwner && from !== 'myListings' && from !== 'edit';
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
@@ -100,14 +143,24 @@ export default function ListingView() {
           headerTintColor: theme.primary,
           headerStyle: { backgroundColor: theme.background },
           headerRight: () => (
-            isOwner ? (
-              <TouchableOpacity 
-                style={{ marginRight: 15 }} 
-                onPress={() => router.push(`/listings/${listingId}/edit`)}
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              {isOwner ? (
+                <TouchableOpacity
+                  style={{ marginRight: 15 }}
+                  onPress={() => router.push(`/listings/${listingId}/edit`)}
+                >
+                  <Ionicons name="create-outline" size={24} color={theme.primary} />
+                </TouchableOpacity>
+              ) : null}
+              {/* --- MODIFICATION: Share button UI --- */}
+              <TouchableOpacity
+                style={{ marginRight: 15 }}
+                onPress={handleSharePress}
               >
-                <Ionicons name="create-outline" size={24} color={theme.primary} />
+                <Ionicons name="share-outline" size={24} color={theme.primary} />
               </TouchableOpacity>
-            ) : null
+              {/* --- END OF MODIFICATION --- */}
+            </View>
           ),
         }}
       />
@@ -121,7 +174,7 @@ export default function ListingView() {
       />
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={[styles.title, { color: theme.text }]}>{listing.title}</Text>
-        
+
         {listing.address && (
           <TouchableOpacity style={styles.locationRow} onPress={handleLocationPress}>
             <Ionicons name="location-outline" size={16} color={theme.text + '99'} />
@@ -130,7 +183,7 @@ export default function ListingView() {
             </Text>
           </TouchableOpacity>
         )}
-        
+
         <Text style={[styles.rent, { color: theme.primary }]}>
           ₹{listing.rent?.toLocaleString()} / month
         </Text>

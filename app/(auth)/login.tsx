@@ -12,7 +12,7 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
-import { Stack, useRouter, Link } from "expo-router";
+import { Stack, useRouter, Link, useLocalSearchParams, type Href } from "expo-router"; // <-- Added useLocalSearchParams
 import { Ionicons } from "@expo/vector-icons";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { FIREBASE_AUTH } from "../../constants/firebaseConfig";
@@ -24,6 +24,7 @@ export default function LoginScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme() || "light";
   const theme = Colors[colorScheme];
+  const { redirectTo } = useLocalSearchParams<{ redirectTo?: string }>(); // <-- Hook to get the redirect path
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -39,8 +40,15 @@ export default function LoginScreen() {
     setIsLoading(true);
     try {
       await signInWithEmailAndPassword(FIREBASE_AUTH, email.trim(), password);
-      // onAuthStateChanged in AuthContext will fire, sync Mongo, then we navigate:
-      router.replace("/(tabs)/home");
+
+      // --- MODIFICATION: Navigate to the specified redirect path if it exists ---
+      if (redirectTo) {
+        const to = decodeURIComponent(redirectTo); // optional, but nice
+        router.replace(to as unknown as Href);     // <-- fix
+      } else {
+        router.replace("/(tabs)/home");
+      }
+      // --- END OF MODIFICATION ---
     } catch (error: any) {
       console.error("Login error:", error);
       let message = "An unexpected error occurred. Please try again.";
