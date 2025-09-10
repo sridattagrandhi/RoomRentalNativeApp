@@ -12,7 +12,16 @@ export interface IUser extends Document {
   createdAt?: Date;
   updatedAt?: Date;
   wishlist: Types.ObjectId[];
-  pushToken?: string; 
+  pushToken?: string;
+  mostViewedCity?: string;
+  mostViewedCharacteristics?: {
+    rent?: number;
+    bedrooms?: number;
+    bathrooms?: number;
+    furnishingStatus?: 'furnished' | 'semi-furnished' | 'unfurnished';
+    areaSqFt?: number;
+    preferredTenants?: string[];
+  };
 }
 
 const UserSchema: Schema = new Schema(
@@ -50,7 +59,21 @@ const UserSchema: Schema = new Schema(
     wishlist: [{
       type: Schema.Types.ObjectId,
       ref: 'Listing'
-    }]
+    }], // <-- FIX: Added a comma here
+    mostViewedCity: { type: String, trim: true },
+    mostViewedCharacteristics: {
+      // FIX: Changed 'type' to 'type: Object' or simply removed to follow interface
+      // The schema field 'type' conflicts with a Mongoose reserved keyword, so we define it as an object
+      type: {
+        rent: { type: Number },
+        bedrooms: { type: Number },
+        bathrooms: { type: Number },
+        furnishingStatus: { type: String, enum: ['furnished', 'semi-furnished', 'unfurnished'] },
+        areaSqFt: { type: Number },
+        preferredTenants: [{ type: String }],
+      },
+      default: {},
+    },
   },
   {
     timestamps: true,

@@ -171,7 +171,7 @@ export default function ChatScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
-      <Stack.Screen options={{ title: recipientName || 'Chat', headerStyle: { backgroundColor: theme.background }, headerTitleStyle: { color: theme.text }, headerTintColor: theme.text, }} />
+      <Stack.Screen options={{ title: recipientName || 'Chat', headerStyle: { backgroundColor: theme.background }, headerTitleStyle: { color: theme.text }, headerTintColor: theme.text, headerBackTitle: 'Back' }} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={90}>
         {loading ? (
           <View style={styles.centered}><ActivityIndicator size="large" color={theme.primary} /></View>

@@ -15,6 +15,7 @@ import chatRoutes from './routes/chatRoutes';
 import User from './models/User';
 import userRoutes from './routes/userRoutes';
 import uploadRoutes from './routes/uploadRoutes';
+import notificationRoutes from './routes/notificationRoutes';
 
 dotenv.config();
 configureCloudinary();
@@ -54,6 +55,7 @@ app.use('/api/listings', listingRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 
 io.use(async (socket: Socket, next) => {

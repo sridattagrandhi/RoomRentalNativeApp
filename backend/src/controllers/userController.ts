@@ -126,3 +126,30 @@ export const updateUserPushToken = async (req: Request, res: Response, next: Nex
     next(error);
   }
 };
+
+export const updateUserPreferences = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const firebaseUserId = req.user?.uid;
+    const { city, characteristics } = req.body;
+    
+    if (!firebaseUserId) {
+      res.status(401).json({ message: 'Not authorized' });
+      return;
+    }
+
+    const user = await User.findOne({ firebaseUID: firebaseUserId });
+    if (!user) {
+      res.status(404).json({ message: 'User not found' });
+      return;
+    }
+
+    // Update the user's preferences based on the data received
+    user.mostViewedCity = city;
+    user.mostViewedCharacteristics = characteristics;
+
+    await user.save();
+    res.status(200).json({ message: 'User preferences updated successfully' });
+  } catch (error) {
+    next(error);
+  }
+};

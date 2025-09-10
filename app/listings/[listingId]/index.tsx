@@ -14,7 +14,7 @@ import {
   TouchableOpacity,
   Alert,
   Linking,
-  Share, // <-- Added Share here
+  Share,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -36,7 +36,7 @@ export default function ListingView() {
   }>();
   const router = useRouter();
   const theme = Colors[useColorScheme() || 'light'];
-  const { firebaseUser, isLoading } = useAuth(); // <-- Added isLoading state
+  const { firebaseUser, isLoading } = useAuth();
 
   const [listing, setListing] = useState<Listing | null>(null);
   const [loading, setLoading] = useState(true);
@@ -58,37 +58,13 @@ export default function ListingView() {
     }
   }, [listingId]);
 
-  // --- MODIFICATION: Handle deep linking and authentication here ---
-  useEffect(() => {
-    // Wait until the authentication state is no longer loading
-    if (isLoading) {
-      return;
-    }
-
-    // If the user is not authenticated, redirect to the login page
-    // The router.replace() prevents the user from navigating back to this unauthenticated page
-    if (!firebaseUser) {
-      router.replace({
-        pathname: '/login',
-        params: { redirectTo: `/listings/${listingId}` },
-      });
-    } else {
-      // If the user is authenticated, proceed with fetching the listing data
-      fetchListing();
-    }
-  }, [firebaseUser, isLoading, fetchListing, listingId, router]);
-  // --- END OF MODIFICATION ---
-
   // --- MODIFICATION: The Share button logic ---
   const handleSharePress = async () => {
     try {
-      // The `listing` state variable will be available here because of the useEffect logic
-      // It handles the case where the component is rendered directly from a deep link
       if (!listing) {
         Alert.alert('Error', 'Listing data is not available to share.');
         return;
       }
-
       const listingUrl = `https://your-app-domain.com/listings/${listingId}`;
       const message = `Check out this listing: ${listing?.title}\n\n${listingUrl}`;
 
@@ -115,6 +91,61 @@ export default function ListingView() {
       Linking.openURL(url).catch(() => Alert.alert("Couldn't open maps"));
     }
   };
+
+  // --- NEW: Function to send user preferences to the backend ---
+  const updateUserPreferences = async (user: any, viewedListing: Listing) => {
+    if (!user || !viewedListing) return;
+    try {
+      const token = await user.getIdToken();
+      await fetch(`${BASE_URL}/api/users/update-preferences`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          city: viewedListing.address.city,
+          characteristics: {
+            bedrooms: viewedListing.bedrooms,
+            bathrooms: viewedListing.bathrooms,
+            furnishingStatus: viewedListing.furnishingStatus,
+            rent: viewedListing.rent,
+            areaSqFt: viewedListing.areaSqFt,
+            preferredTenants: viewedListing.preferredTenants,
+          },
+        }),
+      });
+    } catch (err) {
+      console.error('Failed to update user preferences:', err);
+    }
+  };
+  // --- END NEW ---
+
+  // --- MODIFICATION: Combined useEffect for authentication and fetching ---
+  useEffect(() => {
+    // Wait until the authentication state is no longer loading
+    if (isLoading) {
+      return;
+    }
+    if (!firebaseUser) {
+      router.replace({
+        pathname: '/login',
+        params: { redirectTo: `/listings/${listingId}` },
+      });
+    } else {
+      fetchListing();
+    }
+  }, [firebaseUser, isLoading, fetchListing, listingId, router]);
+  // --- END OF MODIFICATION ---
+
+  // --- NEW: useEffect to trigger preference update after listing data is fetched ---
+  useEffect(() => {
+    if (firebaseUser && listing) {
+      updateUserPreferences(firebaseUser, listing);
+    }
+  }, [firebaseUser, listing]);
+  // --- END NEW ---
+
 
   if (loading || !listing) {
     return (
