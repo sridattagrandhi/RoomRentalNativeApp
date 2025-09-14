@@ -41,7 +41,7 @@ export const addToWishlist = async (req: Request, res: Response, next: NextFunct
     res.status(200).json({ message: 'Added to wishlist', wishlist: user.wishlist });
   } catch (error) {
     console.error('Error in addToWishlist:', error);
-    next(error); // Pass errors to the Express error handler
+    next(error);
   }
 };
 
@@ -131,23 +131,63 @@ export const updateUserPreferences = async (req: Request, res: Response, next: N
   try {
     const firebaseUserId = req.user?.uid;
     const { city, characteristics } = req.body;
-    
+
     if (!firebaseUserId) {
-      res.status(401).json({ message: 'Not authorized' });
+        res.status(401).json({ message: 'Not authorized' });
+        return;
+    }
+
+    if (!city || !characteristics) {
+      res.status(400).json({ message: 'Invalid data provided' });
       return;
     }
 
-    const user = await User.findOne({ firebaseUID: firebaseUserId });
+    const updateQuery: any = {
+      $set: { mostViewedCity: city },
+      $inc: {}
+    };
+
+    // Increment view counters for each characteristic
+    if (characteristics.rent) {
+      updateQuery.$inc[`viewedCharacteristicsProfile.rentRange.${characteristics.rent}`] = 1;
+    }
+    if (characteristics.bedrooms) {
+      updateQuery.$inc[`viewedCharacteristicsProfile.bedrooms.${characteristics.bedrooms}`] = 1;
+    }
+    if (characteristics.bathrooms) {
+      updateQuery.$inc[`viewedCharacteristicsProfile.bathrooms.${characteristics.bathrooms}`] = 1;
+    }
+    if (characteristics.furnishingStatus) {
+      updateQuery.$inc[`viewedCharacteristicsProfile.furnishingStatus.${characteristics.furnishingStatus}`] = 1;
+    }
+    if (characteristics.type) {
+        updateQuery.$inc[`viewedCharacteristicsProfile.type.${characteristics.type}`] = 1;
+    }
+    // --- NEW: Add logic for `preferredTenants` (iterate through the array) ---
+    if (characteristics.preferredTenants && Array.isArray(characteristics.preferredTenants)) {
+        characteristics.preferredTenants.forEach((tenant: string) => {
+            updateQuery.$inc[`viewedCharacteristicsProfile.preferredTenants.${tenant}`] = 1;
+        });
+    }
+    // --- END NEW ---
+    // --- NEW: Add logic for `areaSqFt` (assuming a ranged value from frontend) ---
+    if (characteristics.areaSqFt) {
+        // You would need to ensure the frontend sends a string like '500-1000'
+        updateQuery.$inc[`viewedCharacteristicsProfile.areaSqFt.${characteristics.areaSqFt}`] = 1;
+    }
+    // --- END NEW ---
+    
+    const user = await User.findOneAndUpdate(
+      { firebaseUID: firebaseUserId },
+      updateQuery,
+      { new: true, upsert: true } // Creates a new document if it doesn't exist
+    );
+
     if (!user) {
       res.status(404).json({ message: 'User not found' });
       return;
     }
 
-    // Update the user's preferences based on the data received
-    user.mostViewedCity = city;
-    user.mostViewedCharacteristics = characteristics;
-
-    await user.save();
     res.status(200).json({ message: 'User preferences updated successfully' });
   } catch (error) {
     next(error);

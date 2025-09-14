@@ -97,6 +97,18 @@ export default function ListingView() {
     if (!user || !viewedListing) return;
     try {
       const token = await user.getIdToken();
+      
+      // --- NEW: Helper function to get area range string ---
+      const getAreaRange = (area: number | undefined): string | undefined => {
+          if (!area) return undefined;
+          if (area <= 500) return '0-500';
+          if (area <= 1000) return '501-1000';
+          if (area <= 1500) return '1001-1500';
+          if (area <= 2000) return '1501-2000';
+          return '2001+';
+      };
+      // --- END NEW ---
+
       await fetch(`${BASE_URL}/api/users/update-preferences`, {
         method: 'POST',
         headers: {
@@ -110,8 +122,12 @@ export default function ListingView() {
             bathrooms: viewedListing.bathrooms,
             furnishingStatus: viewedListing.furnishingStatus,
             rent: viewedListing.rent,
-            areaSqFt: viewedListing.areaSqFt,
+            // --- MODIFICATION: Send the areaSqFt in a categorized format ---
+            areaSqFt: getAreaRange(viewedListing.areaSqFt),
+            // --- END MODIFICATION ---
+            // --- MODIFICATION: Send the preferredTenants array ---
             preferredTenants: viewedListing.preferredTenants,
+            // --- END MODIFICATION ---
           },
         }),
       });
@@ -119,8 +135,7 @@ export default function ListingView() {
       console.error('Failed to update user preferences:', err);
     }
   };
-  // --- END NEW ---
-
+  
   // --- MODIFICATION: Combined useEffect for authentication and fetching ---
   useEffect(() => {
     // Wait until the authentication state is no longer loading

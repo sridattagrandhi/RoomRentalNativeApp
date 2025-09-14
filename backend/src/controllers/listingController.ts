@@ -1,9 +1,9 @@
+// backend/src/controllers/listingController.ts
 import { Request, Response, NextFunction } from 'express';
 import User from '../models/User';
 import Listing from '../models/Listing'; // Assuming this is your Mongoose model
 import { Types } from 'mongoose';
 import { v2 as cloudinary } from 'cloudinary';
-
 
 const getPublicIdFromUrl = (url: string): string | null => {
   const match = url.match(/upload\/(?:v\d+\/)?([^\.]+)/);
@@ -60,7 +60,6 @@ export const getPublicListings = async (req: Request, res: Response, next: NextF
     const { 
         city, search, minRent, maxRent, bedrooms, bathrooms,
         furnishingStatus, type, 
-        // --- NEW: Destructure new query params ---
         minArea, maxArea, amenities, preferredTenants 
     } = req.query;
 
@@ -89,8 +88,6 @@ export const getPublicListings = async (req: Request, res: Response, next: NextF
     if (furnishingStatus && typeof furnishingStatus === 'string') {
         query.furnishingStatus = furnishingStatus;
     }
-
-    // --- NEW: Add logic for new filters ---
 
     // Area Range (in sq ft)
     if (minArea || maxArea) {
@@ -143,7 +140,7 @@ export const getListingById = async (req: Request, res: Response, next: NextFunc
 };
 
 
-// We will implement the update logic later
+// --- MODIFIED Controller to update a listing with image management ---
 export const updateListing = async (
   req: Request & { user?: { uid: string } },
   res: Response,
@@ -179,11 +176,30 @@ export const updateListing = async (
     }
 
     // 5) Confirm the current user owns this listing
-    //    👇 compare the ObjectId on the listing to the string virtual `.id` on the user doc
     if (listing.owner.toString() !== user.id) {
       res.status(403).json({ message: 'You can only edit your own listings.' });
       return;
     }
+
+    // --- NEW/MODIFIED: Logic to handle image deletions on Cloudinary ---
+    const oldImageUris = listing.imageUris || [];
+    const newImageUris = req.body.imageUris || [];
+    const imagesToDelete = oldImageUris.filter(uri => !newImageUris.includes(uri));
+
+    if (imagesToDelete.length > 0) {
+      try {
+        const publicIdsToDelete = imagesToDelete
+          .map(uri => getPublicIdFromUrl(uri))
+          .filter((id): id is string => !!id);
+        
+        if (publicIdsToDelete.length > 0) {
+          await cloudinary.api.delete_resources(publicIdsToDelete);
+        }
+      } catch (cloudinaryError) {
+        console.error('Cloudinary deletion failed:', cloudinaryError);
+      }
+    }
+    // --- END NEW/MODIFIED ---
 
     // 6) Merge in the allowed updates and save
     //    (you can also whitelist fields here if you prefer)

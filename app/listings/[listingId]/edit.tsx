@@ -23,6 +23,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { Listing } from '../../../constants/Types';
 import { Colors } from '../../../constants/Colors';
 import { useColorScheme } from '../../../hooks/useColorScheme';
+import * as ImagePicker from 'expo-image-picker';
 
 const windowWidth = Dimensions.get('window').width;
 const BASE_URL =
@@ -58,6 +59,7 @@ export default function ListingEditScreen() {
   const [draft, setDraft] = useState<Partial<Listing>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   // Fetch listing data
   const fetchListing = useCallback(async () => {
@@ -86,12 +88,9 @@ export default function ListingEditScreen() {
     setDraft(d => ({ ...d, [key]: value }));
   };
 
-  // --- CORRECTED: More robust and type-safe helper for nested address fields ---
   const updateAddressField = (key: keyof Listing['address'], value: string) => {
     setDraft(currentDraft => {
-      // Start with a default, empty address structure
       const defaultAddress = { street: '', locality: '', city: '', state: '', postalCode: '' };
-      // Safely spread the existing address properties, or use the default
       const existingAddress = currentDraft.address || defaultAddress;
 
       return {
@@ -102,6 +101,112 @@ export default function ListingEditScreen() {
           },
       }
     });
+  };
+
+  const handleImagePicker = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Denied', 'Sorry, we need camera roll permissions to make this work!');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: true,
+      quality: 0.7,
+    });
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      if (result.assets.length === 1) {
+        handleUploadSingleImage(result.assets[0].uri);
+      } else {
+        handleUploadImages(result.assets.map(asset => asset.uri));
+      }
+    }
+  };
+
+  const handleUploadSingleImage = async (uri: string) => {
+    if (!firebaseUser) {
+      Alert.alert('Login Required', 'Please log in to upload images.');
+      return;
+    }
+    setIsUploading(true);
+    try {
+      const token = await firebaseUser.getIdToken();
+      const formData = new FormData();
+      const file = { uri, name: 'upload.jpg', type: 'image/jpeg' } as any;
+      formData.append('image', file);
+      const res = await fetch(`${BASE_URL}/api/upload/single`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+      if (!res.ok) throw new Error('Image upload failed');
+      const data = await res.json();
+      setDraft(d => {
+        const newImageUris = d.imageUris ? [...d.imageUris, data.uri] : [data.uri];
+        return { ...d, imageUris: newImageUris };
+      });
+      Alert.alert('Success', 'Image uploaded successfully!');
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to upload image.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleUploadImages = async (uris: string[]) => {
+    if (!firebaseUser) {
+      Alert.alert('Login Required', 'Please log in to upload images.');
+      return;
+    }
+    setIsUploading(true);
+    try {
+      const token = await firebaseUser.getIdToken();
+      const formData = new FormData();
+      uris.forEach((uri, index) => {
+        const file = { uri, name: `upload-${index}.jpg`, type: 'image/jpeg' } as any;
+        formData.append('images', file);
+      });
+      const res = await fetch(`${BASE_URL}/api/upload/multiple`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+      if (!res.ok) throw new Error('Image upload failed');
+      const data = await res.json();
+      setDraft(d => {
+        const newImageUris = d.imageUris ? [...d.imageUris, ...data.imageUrls] : [...data.imageUrls];
+        return { ...d, imageUris: newImageUris };
+      });
+      Alert.alert('Success', 'Images uploaded successfully!');
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to upload images.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleRemoveImage = (uriToRemove: string) => {
+    Alert.alert(
+      'Remove Image',
+      'Are you sure you want to remove this image? It will be permanently deleted.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: () => {
+            setDraft(d => {
+              const updatedUris = d.imageUris ? d.imageUris.filter(uri => uri !== uriToRemove) : [];
+              return { ...d, imageUris: updatedUris };
+            });
+          },
+        },
+      ]
+    );
   };
 
   const handleSave = async () => {
@@ -123,7 +228,6 @@ export default function ListingEditScreen() {
       }
 
       Alert.alert('Saved!', 'Your listing was updated.');
-      // --- FIXED: Use the static route for pathname and pass listingId in params ---
       router.replace({ 
         pathname: '/listings/[listingId]', 
         params: { listingId: listing.id, from: 'edit' } 
@@ -143,6 +247,15 @@ export default function ListingEditScreen() {
     );
   }
 
+  const renderImage = ({ item }: { item: string }) => (
+    <View style={styles.imageContainer}>
+      <Image source={{ uri: item }} style={[styles.image, { width: windowWidth }]} />
+      <TouchableOpacity style={styles.removeImageButton} onPress={() => handleRemoveImage(item)}>
+        <Ionicons name="close-circle" size={30} color="#FF3B30" />
+      </TouchableOpacity>
+    </View>
+  );
+
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>      
       <Stack.Screen
@@ -156,18 +269,22 @@ export default function ListingEditScreen() {
       />
 
       <ScrollView contentContainerStyle={styles.scrollContainer}>
-        <FlatList
-          data={listing.imageUris?.length ? listing.imageUris : [listing.image]}
-          horizontal
-          pagingEnabled
-          keyExtractor={(_, i) => `img-${i}`}
-          renderItem={({ item }) => (
-            <Image
-              source={{ uri: item }}
-              style={[styles.image, { width: windowWidth }]}
-            />
-          )}
-        />
+        <View style={styles.imageGalleryContainer}>
+          <FlatList
+            data={draft.imageUris}
+            horizontal
+            pagingEnabled
+            keyExtractor={(_, i) => `img-${i}`}
+            renderItem={renderImage}
+          />
+          <TouchableOpacity onPress={handleImagePicker} style={[styles.uploadButton, { borderColor: theme.primary }]}>
+            {isUploading ? (
+              <ActivityIndicator color={theme.primary} />
+            ) : (
+              <Ionicons name="add" size={30} color={theme.primary} />
+            )}
+          </TouchableOpacity>
+        </View>
 
         <View style={styles.formContainer}>
           <Text style={[styles.sectionHeader, { color: theme.text }]}>Primary Information</Text>
@@ -312,7 +429,45 @@ export default function ListingEditScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   scrollContainer: { paddingBottom: 50 },
-  image: { height: 240, resizeMode: 'cover', marginBottom: 10 },
+  imageGalleryContainer: {
+    height: 240,
+    position: 'relative',
+  },
+  imageContainer: {
+    width: windowWidth,
+    height: 240,
+    position: 'relative',
+  },
+  image: {
+    height: 240,
+    resizeMode: 'cover',
+  },
+  removeImageButton: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    zIndex: 10,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 15,
+  },
+  uploadButton: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#fff',
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 5,
+  },
   formContainer: { paddingHorizontal: 20 },
   sectionHeader: {
     fontSize: 18,

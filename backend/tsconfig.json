@@ -15,13 +15,20 @@
     "typeRoots": [
       "./node_modules/@types",
       "./src/types"
-    ]
+    ],
+
+    // Pick up Jest globals (describe, it, expect, etc.)
+    "types": ["node", "jest"]
   },
   "include": [
-    "src/**/*"    // This ensures TS “sees” all .ts/.d.ts files under src
-, "config"  ],
+    "src/**/*",
+    "config",
+    "**/*.test.ts",          // 👈 include test files anywhere
+    "**/__tests__/**/*.ts"   // 👈 include __tests__ folders
+, "src/jest.config.ts"  ],
   "exclude": [
     "node_modules",
-    "dist"
+    "dist",
+    "jest.config.ts"
   ]
 }

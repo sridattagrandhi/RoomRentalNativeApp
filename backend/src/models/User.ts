@@ -1,6 +1,6 @@
+// backend/src/models/User.ts
 import mongoose, { Schema, Document, Types } from 'mongoose';
 
-// Define an interface representing a document in MongoDB.
 export interface IUser extends Document {
   _id: Types.ObjectId; 
   firebaseUID: string;
@@ -14,13 +14,14 @@ export interface IUser extends Document {
   wishlist: Types.ObjectId[];
   pushToken?: string;
   mostViewedCity?: string;
-  mostViewedCharacteristics?: {
-    rent?: number;
-    bedrooms?: number;
-    bathrooms?: number;
-    furnishingStatus?: 'furnished' | 'semi-furnished' | 'unfurnished';
-    areaSqFt?: number;
-    preferredTenants?: string[];
+  viewedCharacteristicsProfile?: {
+    city?: { [key: string]: number };
+    type?: { [key: string]: number };
+    bedrooms?: { [key: string]: number };
+    bathrooms?: { [key: string]: number };
+    furnishingStatus?: { [key: string]: number };
+    preferredTenants?: { [key: string]: number };
+    rentRange?: { [key: string]: number };
   };
 }
 
@@ -59,18 +60,17 @@ const UserSchema: Schema = new Schema(
     wishlist: [{
       type: Schema.Types.ObjectId,
       ref: 'Listing'
-    }], // <-- FIX: Added a comma here
+    }],
     mostViewedCity: { type: String, trim: true },
-    mostViewedCharacteristics: {
-      // FIX: Changed 'type' to 'type: Object' or simply removed to follow interface
-      // The schema field 'type' conflicts with a Mongoose reserved keyword, so we define it as an object
+    viewedCharacteristicsProfile: {
       type: {
-        rent: { type: Number },
-        bedrooms: { type: Number },
-        bathrooms: { type: Number },
-        furnishingStatus: { type: String, enum: ['furnished', 'semi-furnished', 'unfurnished'] },
-        areaSqFt: { type: Number },
-        preferredTenants: [{ type: String }],
+        city: { type: Map, of: Number },
+        type: { type: Map, of: Number },
+        bedrooms: { type: Map, of: Number },
+        bathrooms: { type: Map, of: Number },
+        furnishingStatus: { type: Map, of: Number },
+        preferredTenants: { type: Map, of: Number },
+        rentRange: { type: Map, of: Number },
       },
       default: {},
     },
@@ -80,7 +80,6 @@ const UserSchema: Schema = new Schema(
   }
 );
 
-// Create and export the User model
 const User = mongoose.model<IUser>('User', UserSchema);
 
 export default User;
