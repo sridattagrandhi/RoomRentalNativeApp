@@ -167,7 +167,21 @@ export default function ListingView() {
       <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
         <Stack.Screen options={{ title: loading ? 'Loading…' : 'Not found' }} />
         <View style={styles.centered}>
-          {loading ? <ActivityIndicator color={theme.primary} size="large" /> : <Text style={{ color: theme.text }}>Listing not found</Text>}
+          {loading ? (
+            <ActivityIndicator color={theme.primary} size="large" />
+          ) : (
+            <>
+              <Text style={{ color: theme.text }}>Listing not found</Text>
+              {/* --- NEW: Retry button --- */}
+              <TouchableOpacity
+                style={[styles.retryButton, { backgroundColor: theme.primary }]}
+                onPress={fetchListing}
+              >
+                <Text style={styles.retryButtonText}>Try Again</Text>
+              </TouchableOpacity>
+              {/* --- END NEW --- */}
+            </>
+          )}
         </View>
       </SafeAreaView>
     );
@@ -384,4 +398,18 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   actionButtonText: { fontSize: 16, fontWeight: 'bold' },
+
+  // --- NEW: retry button styles ---
+  retryButton: {
+    marginTop: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  retryButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
 });

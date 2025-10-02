@@ -1,4 +1,3 @@
-// backend/src/server.ts
 import express, { Express, Request, Response, NextFunction } from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';

@@ -1,9 +1,18 @@
 // backend/src/controllers/listingController.ts
 import { Request, Response, NextFunction } from 'express';
 import User from '../models/User';
-import Listing from '../models/Listing'; // Assuming this is your Mongoose model
+import Listing from '../models/Listing';
 import { Types } from 'mongoose';
 import { v2 as cloudinary } from 'cloudinary';
+
+// Local request type that includes `user`
+type AuthedRequest = Request & {
+  user?: {
+    uid: string;
+    email?: string | null;
+    name?: string | null;
+  };
+};
 
 const getPublicIdFromUrl = (url: string): string | null => {
   const match = url.match(/upload\/(?:v\d+\/)?([^\.]+)/);
@@ -11,7 +20,11 @@ const getPublicIdFromUrl = (url: string): string | null => {
 };
 
 // Controller to create a new listing (Protected)
-export const createListing = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const createListing = async (
+  req: AuthedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
     const firebaseUserId = req.user?.uid;
     if (!firebaseUserId) {
@@ -32,7 +45,11 @@ export const createListing = async (req: Request, res: Response, next: NextFunct
 };
 
 // Controller to get listings for the current authenticated user (Protected)
-export const getMyListings = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const getMyListings = async (
+  req: AuthedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
     const firebaseUserId = req.user?.uid;
     if (!firebaseUserId) {
@@ -51,19 +68,21 @@ export const getMyListings = async (req: Request, res: Response, next: NextFunct
   }
 };
 
-// --- NEW/UPDATED PUBLIC CONTROLLERS ---
+// --- PUBLIC CONTROLLERS ---
 
 // GET /api/listings - Get all public listings, can be filtered by city
-// This is a public route, no 'protect' middleware needed.
-export const getPublicListings = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const getPublicListings = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
     const { 
-        city, search, minRent, maxRent, bedrooms, bathrooms,
-        furnishingStatus, type, 
-        minArea, maxArea, amenities, preferredTenants 
+      city, search, minRent, maxRent, bedrooms, bathrooms,
+      furnishingStatus, type, minArea, maxArea, amenities, preferredTenants 
     } = req.query;
 
-    let query: any = { isAvailable: true };
+    const query: any = { isAvailable: true };
 
     if (city && typeof city === 'string') {
       query['address.city'] = { $regex: new RegExp(`^${city}$`, 'i') };
@@ -76,18 +95,10 @@ export const getPublicListings = async (req: Request, res: Response, next: NextF
       if (minRent) query.rent.$gte = Number(minRent);
       if (maxRent) query.rent.$lte = Number(maxRent);
     }
-    if (bedrooms) {
-      query.bedrooms = { $gte: Number(bedrooms) };
-    }
-    if (bathrooms) {
-      query.bathrooms = { $gte: Number(bathrooms) };
-    }
-    if (type && typeof type === 'string') {
-        query.type = { $regex: new RegExp(`^${type}$`, 'i') };
-    }
-    if (furnishingStatus && typeof furnishingStatus === 'string') {
-        query.furnishingStatus = furnishingStatus;
-    }
+    if (bedrooms) query.bedrooms = { $gte: Number(bedrooms) };
+    if (bathrooms) query.bathrooms = { $gte: Number(bathrooms) };
+    if (type && typeof type === 'string') query.type = { $regex: new RegExp(`^${type}$`, 'i') };
+    if (furnishingStatus && typeof furnishingStatus === 'string') query.furnishingStatus = furnishingStatus;
 
     // Area Range (in sq ft)
     if (minArea || maxArea) {
@@ -96,22 +107,19 @@ export const getPublicListings = async (req: Request, res: Response, next: NextF
       if (maxArea) query.areaSqFt.$lte = Number(maxArea);
     }
     
-    // Amenities (must have ALL selected amenities)
-    // Expects amenities to be a comma-separated string: "WiFi,AC"
+    // Amenities (ALL)
     if (amenities && typeof amenities === 'string' && amenities.length > 0) {
-        const amenitiesList = amenities.split(',');
-        query.amenities = { $all: amenitiesList };
+      const amenitiesList = amenities.split(',');
+      query.amenities = { $all: amenitiesList };
     }
 
-    // Preferred Tenants (must match at least ONE of the selected tenants)
-    // Expects tenants to be a comma-separated string: "Bachelors,Family"
+    // Preferred Tenants (ANY)
     if (preferredTenants && typeof preferredTenants === 'string' && preferredTenants.length > 0) {
-        const tenantsList = preferredTenants.split(',');
-        query.preferredTenants = { $in: tenantsList };
+      const tenantsList = preferredTenants.split(',');
+      query.preferredTenants = { $in: tenantsList };
     }
     
     const listings = await Listing.find(query).sort({ postedDate: -1 });
-
     res.status(200).json(listings);
   } catch (error) {
     next(error);
@@ -119,14 +127,17 @@ export const getPublicListings = async (req: Request, res: Response, next: NextF
 };
 
 // GET /api/listings/:id - Get a single listing by its ID (Public)
-export const getListingById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const getListingById = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
     const { id } = req.params;
     if (!Types.ObjectId.isValid(id)) {
       res.status(400).json({ message: 'Invalid listing ID format' });
       return;
     }
-    // Populate owner info - selects only the 'name' and 'profileImageUrl' fields from the referenced User document
     const listing = await Listing.findById(id).populate('owner', 'name profileImageUrl');
 
     if (!listing) {
@@ -139,49 +150,43 @@ export const getListingById = async (req: Request, res: Response, next: NextFunc
   }
 };
 
-
-// --- MODIFIED Controller to update a listing with image management ---
+// Update a listing (Protected) with Cloudinary cleanup
 export const updateListing = async (
-  req: Request & { user?: { uid: string } },
+  req: AuthedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    // 1) Ensure we have a Firebase UID
     const firebaseUid = req.user?.uid;
     if (!firebaseUid) {
       res.status(401).json({ message: 'Not authorized' });
       return;
     }
 
-    // 2) Look up our Mongo user
     const user = await User.findOne({ firebaseUID: firebaseUid });
     if (!user) {
       res.status(404).json({ message: 'User not found' });
       return;
     }
 
-    // 3) Validate the listing ID param
     const listingId = req.params.id;
     if (!Types.ObjectId.isValid(listingId)) {
       res.status(400).json({ message: 'Invalid listing ID' });
       return;
     }
 
-    // 4) Fetch the listing
     const listing = await Listing.findById(listingId);
     if (!listing) {
       res.status(404).json({ message: 'Listing not found' });
       return;
     }
 
-    // 5) Confirm the current user owns this listing
     if (listing.owner.toString() !== user.id) {
       res.status(403).json({ message: 'You can only edit your own listings.' });
       return;
     }
 
-    // --- NEW/MODIFIED: Logic to handle image deletions on Cloudinary ---
+    // Cloudinary deletions for removed images
     const oldImageUris = listing.imageUris || [];
     const newImageUris = req.body.imageUris || [];
     const imagesToDelete = oldImageUris.filter(uri => !newImageUris.includes(uri));
@@ -191,7 +196,6 @@ export const updateListing = async (
         const publicIdsToDelete = imagesToDelete
           .map(uri => getPublicIdFromUrl(uri))
           .filter((id): id is string => !!id);
-        
         if (publicIdsToDelete.length > 0) {
           await cloudinary.api.delete_resources(publicIdsToDelete);
         }
@@ -199,14 +203,9 @@ export const updateListing = async (
         console.error('Cloudinary deletion failed:', cloudinaryError);
       }
     }
-    // --- END NEW/MODIFIED ---
 
-    // 6) Merge in the allowed updates and save
-    //    (you can also whitelist fields here if you prefer)
     Object.assign(listing, req.body);
     const updatedListing = await listing.save();
-
-    // 7) Return the freshly updated document
     res.status(200).json(updatedListing);
   } catch (err) {
     console.error('Failed to update listing:', err);
@@ -215,12 +214,11 @@ export const updateListing = async (
 };
 
 export const deleteListing = async (
-  req: Request & { user?: { uid:string }},
+  req: AuthedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    // 1 & 2. Authentication & User lookup
     const firebaseUid = req.user?.uid;
     const user = await User.findOne({ firebaseUID: firebaseUid });
     if (!user) {
@@ -228,7 +226,6 @@ export const deleteListing = async (
       return;
     }
 
-    // 3 & 4. Validate ID and fetch the listing
     const { id } = req.params;
     if (!Types.ObjectId.isValid(id)) {
       res.status(400).json({ message: 'Invalid listing ID' });
@@ -240,15 +237,13 @@ export const deleteListing = async (
       return;
     }
 
-    // 5. Ownership check
     if (listing.owner.toString() !== user.id) {
       res.status(403).json({ message: 'You can only delete your own listings.' });
       return;
     }
 
-    // --- 3. NEW: Delete images from Cloudinary BEFORE deleting the DB record ---
+    // Delete images from Cloudinary first
     try {
-      // a. Gather all image public IDs associated with the listing
       const publicIds: string[] = [];
       if (listing.image) {
         const publicId = getPublicIdFromUrl(listing.image);
@@ -260,22 +255,14 @@ export const deleteListing = async (
           if (publicId) publicIds.push(publicId);
         });
       }
-
-      // b. If there are any IDs, tell Cloudinary to delete them
       if (publicIds.length > 0) {
-        console.log(`Deleting ${publicIds.length} images from Cloudinary...`);
-        // Use `api.delete_resources` for bulk deletion
         await cloudinary.api.delete_resources(publicIds);
       }
     } catch (cloudinaryError) {
-      // Log the error, but don't block the listing deletion from our DB
       console.error('Cloudinary deletion failed, but proceeding with DB deletion:', cloudinaryError);
     }
     
-    // 6. Delete the listing from MongoDB
     await listing.deleteOne();
-
-    // 7. Return success
     res.status(204).end();
   } catch (err) {
     console.error('Failed to delete listing:', err);

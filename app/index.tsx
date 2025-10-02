@@ -4,27 +4,25 @@ import React from 'react';
 import { ActivityIndicator, View } from 'react-native';
 
 import { useAuth } from '../context/AuthContext';
-import { Colors } from '../constants/Colors'; // For spinner color
+import { useColorScheme } from '../hooks/useColorScheme';
+import { Colors } from '../constants/Colors';
 
 export default function IndexScreen() {
-  const { user, isLoading } = useAuth();
+  const { firebaseUser, isLoading } = useAuth(); // <-- use firebaseUser
+  const scheme = useColorScheme() || 'light';
+  const theme = Colors[scheme];
 
   if (isLoading) {
-    // Show a loading spinner while checking auth state
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color={Colors.light.primary} />
+        <ActivityIndicator size="large" color={theme.primary} />
       </View>
     );
   }
 
-  if (user) {
-    // If user is logged in, redirect to the main app (tabs)
-    console.log("Redirecting to (tabs)...");
-    return <Redirect href="./(tabs)/" />;
-  } else {
-    // If user is not logged in, redirect to the login screen
-    console.log("Redirecting to login...");
-    return <Redirect href="/(auth)/login" />;
+  if (firebaseUser) {
+    return <Redirect href="/(tabs)/home" />;
   }
+
+  return <Redirect href="/(auth)/login" />;
 }

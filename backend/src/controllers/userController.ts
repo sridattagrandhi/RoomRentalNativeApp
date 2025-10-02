@@ -4,9 +4,23 @@ import { Expo, ExpoPushMessage } from 'expo-server-sdk';
 import User from '../models/User';
 import mongoose from 'mongoose';
 
-const expo = new Expo()
+const expo = new Expo();
+
+// Local request type that includes `user`
+type AuthedRequest = Request & {
+  user?: {
+    uid: string;
+    email?: string | null;
+    name?: string | null;
+  };
+};
+
 // Add a listing to the user's wishlist
-export const addToWishlist = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const addToWishlist = async (
+  req: AuthedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
     const { listingId } = req.params;
     const firebaseUserId = req.user?.uid;
@@ -28,7 +42,7 @@ export const addToWishlist = async (req: Request, res: Response, next: NextFunct
     }
 
     const listingObjectId = new mongoose.Types.ObjectId(listingId);
-    const isAlreadyInWishlist = user.wishlist.some(id => id.equals(listingObjectId));
+    const isAlreadyInWishlist = user.wishlist.some((id) => id.equals(listingObjectId));
 
     if (isAlreadyInWishlist) {
       res.status(400).json({ message: 'Listing already in wishlist' });
@@ -46,7 +60,11 @@ export const addToWishlist = async (req: Request, res: Response, next: NextFunct
 };
 
 // Remove a listing from the user's wishlist
-export const removeFromWishlist = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const removeFromWishlist = async (
+  req: AuthedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
     const { listingId } = req.params;
     const firebaseUserId = req.user?.uid;
@@ -80,7 +98,11 @@ export const removeFromWishlist = async (req: Request, res: Response, next: Next
 };
 
 // Get all listings in the user's wishlist
-export const getWishlist = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const getWishlist = async (
+  req: AuthedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
     const firebaseUserId = req.user?.uid;
 
@@ -103,7 +125,11 @@ export const getWishlist = async (req: Request, res: Response, next: NextFunctio
   }
 };
 
-export const updateUserPushToken = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const updateUserPushToken = async (
+  req: AuthedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
     const { token } = req.body;
     const firebaseUserId = req.user?.uid;
@@ -127,14 +153,18 @@ export const updateUserPushToken = async (req: Request, res: Response, next: Nex
   }
 };
 
-export const updateUserPreferences = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const updateUserPreferences = async (
+  req: AuthedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
     const firebaseUserId = req.user?.uid;
     const { city, characteristics } = req.body;
 
     if (!firebaseUserId) {
-        res.status(401).json({ message: 'Not authorized' });
-        return;
+      res.status(401).json({ message: 'Not authorized' });
+      return;
     }
 
     if (!city || !characteristics) {
@@ -144,7 +174,7 @@ export const updateUserPreferences = async (req: Request, res: Response, next: N
 
     const updateQuery: any = {
       $set: { mostViewedCity: city },
-      $inc: {}
+      $inc: {},
     };
 
     // Increment view counters for each characteristic
@@ -161,26 +191,23 @@ export const updateUserPreferences = async (req: Request, res: Response, next: N
       updateQuery.$inc[`viewedCharacteristicsProfile.furnishingStatus.${characteristics.furnishingStatus}`] = 1;
     }
     if (characteristics.type) {
-        updateQuery.$inc[`viewedCharacteristicsProfile.type.${characteristics.type}`] = 1;
+      updateQuery.$inc[`viewedCharacteristicsProfile.type.${characteristics.type}`] = 1;
     }
-    // --- NEW: Add logic for `preferredTenants` (iterate through the array) ---
+    // Count each preferredTenant value
     if (characteristics.preferredTenants && Array.isArray(characteristics.preferredTenants)) {
-        characteristics.preferredTenants.forEach((tenant: string) => {
-            updateQuery.$inc[`viewedCharacteristicsProfile.preferredTenants.${tenant}`] = 1;
-        });
+      characteristics.preferredTenants.forEach((tenant: string) => {
+        updateQuery.$inc[`viewedCharacteristicsProfile.preferredTenants.${tenant}`] = 1;
+      });
     }
-    // --- END NEW ---
-    // --- NEW: Add logic for `areaSqFt` (assuming a ranged value from frontend) ---
+    // Area range bucket
     if (characteristics.areaSqFt) {
-        // You would need to ensure the frontend sends a string like '500-1000'
-        updateQuery.$inc[`viewedCharacteristicsProfile.areaSqFt.${characteristics.areaSqFt}`] = 1;
+      updateQuery.$inc[`viewedCharacteristicsProfile.areaSqFt.${characteristics.areaSqFt}`] = 1;
     }
-    // --- END NEW ---
-    
+
     const user = await User.findOneAndUpdate(
       { firebaseUID: firebaseUserId },
       updateQuery,
-      { new: true, upsert: true } // Creates a new document if it doesn't exist
+      { new: true, upsert: true }
     );
 
     if (!user) {

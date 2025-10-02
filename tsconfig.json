@@ -1,36 +1,32 @@
-// tsconfig.json
 {
-  // 1) Still extend Expo’s base TypeScript config
-  "extends": "expo/tsconfig.base.json",
-
-  // 2) CompilerOptions must include baseUrl and paths
   "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
     "strict": true,
-
-    // Without baseUrl, TS will ignore "paths"
-    "baseUrl": ".",
-
-    // Tell TS EXACTLY where to find the React Native .d.ts for Auth
+    "skipLibCheck": true,
+    "noEmit": true,
+    "resolveJsonModule": true,
     "paths": {
-      "@/*": ["./*"],
-
-      // When you import from "firebase/auth", use the RN type file below:
+      "@/*": [
+        "./*"
+      ],
       "firebase/auth": [
         "./node_modules/firebase/node_modules/@firebase/auth/dist/index.rn.d.ts"
       ],
-
-      // If you ever import from "@firebase/auth", map that the same way:
       "@firebase/auth": [
         "./node_modules/firebase/node_modules/@firebase/auth/dist/index.rn.d.ts"
       ]
     }
   },
-
-  // 3) Keep your existing include globs
+  "ignoreDeprecations": "6.0",
   "include": [
     "**/*.ts",
     "**/*.tsx",
     ".expo/types/**/*.ts",
-    "expo-env.d.ts"
-, "backend/babel.config.js"  ]
+    "expo-env.d.ts",
+    "backend/babel.config.js"
+  ],
+  "extends": "expo/tsconfig.base"
 }

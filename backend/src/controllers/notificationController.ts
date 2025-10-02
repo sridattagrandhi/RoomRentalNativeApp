@@ -1,16 +1,20 @@
 // backend/src/controllers/notificationController.ts
 import { Request, Response, NextFunction } from 'express';
 import { Expo, ExpoPushMessage } from 'expo-server-sdk';
-import User, { IUser } from '../models/User';
-import Listing, { IListing } from '../models/Listing';
+import User from '../models/User';
+import Listing from '../models/Listing';
 
 const expo = new Expo();
 
-export const sendPersonalizedNotifications = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const sendPersonalizedNotifications = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
-    // 1. Get all users who have a push token and a viewed characteristics profile
+    // Only select users with a valid Expo push token and a characteristics profile
     const users = await User.find({
-      pushToken: { $exists: true, $ne: [null, ''] },
+      pushToken: { $exists: true, $nin: [null, ''] },
       'viewedCharacteristicsProfile.city': { $exists: true, $ne: null },
     });
 
@@ -18,22 +22,23 @@ export const sendPersonalizedNotifications = async (_req: Request, res: Response
 
     for (const user of users) {
       const { viewedCharacteristicsProfile } = user;
-      
-      // Helper function to find the top-viewed preference from a map of counts
+
+      // Find the top preference for each field
       const getTopPreference = (profile?: { [key: string]: number }) => {
         if (!profile || Object.keys(profile).length === 0) return null;
-        return Object.keys(profile).reduce((a, b) => (profile[a] || 0) > (profile[b] || 0) ? a : b);
+        return Object.keys(profile).reduce((a, b) =>
+          (profile[a] || 0) > (profile[b] || 0) ? a : b
+        );
       };
 
-      // 2. Find the user's top preferences from their comprehensive profile
       const preferredCity = getTopPreference(viewedCharacteristicsProfile?.city);
       const preferredType = getTopPreference(viewedCharacteristicsProfile?.type);
       const preferredBedrooms = getTopPreference(viewedCharacteristicsProfile?.bedrooms);
       const preferredBathrooms = getTopPreference(viewedCharacteristicsProfile?.bathrooms);
       const preferredFurnishing = getTopPreference(viewedCharacteristicsProfile?.furnishingStatus);
       const preferredTenants = getTopPreference(viewedCharacteristicsProfile?.preferredTenants);
-      
-      // 3. Find new listings that match the user's top characteristics
+
+      // Build a query for new listings posted in the last 24 hours
       const query: any = {
         isAvailable: true,
         postedDate: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
@@ -54,31 +59,33 @@ export const sendPersonalizedNotifications = async (_req: Request, res: Response
       if (preferredFurnishing) {
         query.furnishingStatus = preferredFurnishing;
       }
+      // If the user has a preferred tenant type, match at least one tenant
       if (preferredTenants) {
-        // You would need to refine this to handle arrays
+        query.preferredTenants = { $in: [preferredTenants] };
       }
 
       const newMatchingListings = await Listing.find(query);
 
       if (newMatchingListings.length > 0) {
-        // 4. Create and send a notification
-        const body = newMatchingListings.length > 1
-          ? `We found ${newMatchingListings.length} new listings in ${preferredCity} that you might like!`
-          : `A new listing matching your preferences was posted in ${preferredCity}!`;
+        const body =
+          newMatchingListings.length > 1
+            ? `We found ${newMatchingListings.length} new listings in ${preferredCity} that you might like!`
+            : `A new listing matching your preferences was posted in ${preferredCity}!`;
 
+        // Only queue notifications for users with valid Expo push tokens
         if (user.pushToken && Expo.isExpoPushToken(user.pushToken)) {
           messages.push({
             to: user.pushToken,
             sound: 'default',
-            title: `New Listing Alert!`,
-            body: body,
-            data: { screen: 'Listings', query: query },
+            title: 'New Listing Alert!',
+            body,
+            data: { screen: 'Listings', query },
           });
         }
       }
     }
 
-    // Only send notifications if there are messages to send
+    // Send notifications in chunks if there are any messages to send
     if (messages.length > 0) {
       const chunks = expo.chunkPushNotifications(messages);
       for (const chunk of chunks) {
