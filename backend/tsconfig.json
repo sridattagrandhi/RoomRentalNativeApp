@@ -2,7 +2,8 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    "module": "commonjs",
+    "module": "CommonJS",
+    "moduleResolution": "node",
     "rootDir": "./src",
     "outDir": "./dist",
     "esModuleInterop": true,
@@ -11,24 +12,19 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
 
-    // Point at both the node_modules/@types and our own src/types folder:
-    "typeRoots": [
-      "./node_modules/@types",
-      "./src/types"
-    ],
-
-    // Pick up Jest globals (describe, it, expect, etc.)
+    "typeRoots": ["./node_modules/@types", "./src/types"],
     "types": ["node", "jest"]
   },
   "include": [
     "src/**/*",
-    "config",
-    "**/*.test.ts",          // 👈 include test files anywhere
-    "**/__tests__/**/*.ts"   // 👈 include __tests__ folders
-, "src/jest.config.ts"  ],
+    "config"
+  ],
   "exclude": [
     "node_modules",
     "dist",
-    "jest.config.ts"
+    "**/*.test.ts",
+    "**/__tests__/**",
+    "jest.config.ts",
+    "src/jest.config.ts"
   ]
 }
