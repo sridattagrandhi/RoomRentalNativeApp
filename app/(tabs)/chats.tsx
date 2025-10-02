@@ -25,7 +25,8 @@ import { useColorScheme } from '../../hooks/useColorScheme';
 import { ChatListItem } from '../../constants/Types';
 import { styles } from './chats.styles';
 
-const DEV_SERVER_URL = process.env.EXPO_PUBLIC_DEV_URL;
+// EXPO_PUBLIC_DEV_URL may be undefined when running locally; provide a sensible fallback.
+const DEV_SERVER_URL = process.env.EXPO_PUBLIC_DEV_URL || 'http://localhost:5001';
 const PRODUCTION_SERVER_URL = 'https://api.your-app-name.com';
 
 // Use __DEV__ to select the correct URL based on the environment

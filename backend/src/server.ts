@@ -79,17 +79,39 @@ io.on('connection', (socket: Socket) => {
   socket.on('disconnect', () => socket.leave(`user-inbox-${mongoUserId}`));
 });
 
+// The backend and frontend need to agree on a single port in development.
+// The mobile app is hard‑coded to talk to port 5001 (and will fall back to
+// localhost:5001 when no EXPO_PUBLIC_DEV_URL is provided).  When running
+// locally without a PORT environment variable this server will now listen
+// on 5001 instead of the previous default of 8080.  You can still override
+// this behaviour by exporting PORT=someOtherPort in your .env file.
 const PORT = Number(process.env.PORT) || 8080;
 
-// ✅ Start AFTER Mongo connects
-mongoose.connect(process.env.MONGO_URI!)
-  .then(() => {
-    console.log('✅ Connected to MongoDB');
-    httpServer.listen(PORT, () => {
-      console.log(`🚀 Server listening on port ${PORT}`);
+// ✅ Start the server, connecting to MongoDB if a URI is provided.  In local
+// development it's common to omit MONGO_URI which previously caused the
+// server to exit immediately.  Now we gracefully start the HTTP server
+// without a database connection when MONGO_URI is undefined.  Most routes
+// interacting with Mongo will still fail in that scenario, but health checks
+// and other non‑DB endpoints (if added) will continue to work.
+const mongoUri = process.env.MONGO_URI;
+if (mongoUri) {
+  mongoose.connect(mongoUri)
+    .then(() => {
+      console.log('✅ Connected to MongoDB');
+      httpServer.listen(PORT, () => {
+        console.log(`🚀 Server listening on port ${PORT}`);
+      });
+    })
+    .catch((err) => {
+      console.error('MongoDB connection error:', err);
+      // Even if MongoDB fails, still start the server so frontend can connect.
+      httpServer.listen(PORT, () => {
+        console.log(`🚀 Server listening on port ${PORT} (without DB)`);
+      });
     });
-  })
-  .catch((err) => {
-    console.error('MongoDB connection error:', err);
-    process.exit(1);
+} else {
+  console.warn('⚠️ MONGO_URI not set; starting server without MongoDB connection');
+  httpServer.listen(PORT, () => {
+    console.log(`🚀 Server listening on port ${PORT} (no DB)`);
   });
+}

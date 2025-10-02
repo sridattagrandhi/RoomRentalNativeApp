@@ -43,9 +43,8 @@ const groupMessagesByDate = (messages: Message[]): ChatListItemData[] => {
   return grouped;
 };
 
-
-
-const DEV_SERVER_URL = process.env.EXPO_PUBLIC_DEV_URL;
+// Use the EXPO_PUBLIC_DEV_URL if provided, otherwise fall back to a localhost URL.
+const DEV_SERVER_URL = process.env.EXPO_PUBLIC_DEV_URL || 'http://localhost:5001';
 const PRODUCTION_SERVER_URL = 'https://your-production-api.com'; // <-- Use your actual deployed server URL here
 
 // Use a simple check for the development environment (__DEV__)
@@ -152,22 +151,22 @@ export default function ChatScreen() {
   };
 
   const renderItem = ({ item }: { item: ChatListItemData }) => {
-    if (isDateSeparator(item)) {
-      return (
-        <View style={styles.dateSeparatorContainer}>
-          <Text style={[styles.dateSeparatorText, { color: theme.background, backgroundColor: theme.text + '30' }]}>{item.date}</Text>
-        </View>
-      );
-    } else {
-      const isMe = item.sender._id === firebaseUser?.uid;
-      return (
-        <View style={[ styles.bubble, isMe ? styles.myBubble : styles.theirBubble, { backgroundColor: isMe ? theme.primary : theme.text + '15' } ]}>
-          <Text style={[styles.bubbleText, { color: isMe ? '#fff' : theme.text }]}>{item.text}</Text>
-          <Text style={[styles.timestamp, { color: isMe ? '#ffffff99' : theme.text + '80' }]}>{new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
-        </View>
-      );
-    }
-  };
+  if (isDateSeparator(item)) {
+    return (
+      <View style={styles.dateSeparatorContainer}>
+        <Text style={[styles.dateSeparatorText, { color: theme.background, backgroundColor: theme.text + '30' }]}>{item.date}</Text>
+      </View>
+    );
+  } else {
+    const isMe = item.sender._id === firebaseUser?.uid;
+    return (
+      <View style={[ styles.bubble, isMe ? styles.myBubble : styles.theirBubble, { backgroundColor: isMe ? theme.primary : theme.text + '15' } ]}>
+        <Text style={[styles.bubbleText, { color: isMe ? '#fff' : theme.text }]}>{item.text}</Text>
+        <Text style={[styles.timestamp, { color: isMe ? '#ffffff99' : theme.text + '80' }]}>{new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
+      </View>
+    );
+  }
+};
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
@@ -198,17 +197,65 @@ export default function ChatScreen() {
   );
 }
 
+// Basic styling
 const styles = StyleSheet.create({
-  centered:            { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  listContentContainer:{ paddingHorizontal: 12, flexGrow: 1, justifyContent: 'flex-end' },
-  bubble:              { marginVertical: 6, padding: 12, borderRadius: 18, maxWidth: '80%' },
-  myBubble:            { alignSelf: 'flex-end', borderBottomRightRadius: 4 },
-  theirBubble:         { alignSelf: 'flex-start', borderBottomLeftRadius: 4 },
-  bubbleText:          { fontSize: 16, lineHeight: 22 },
-  timestamp:           { fontSize: 11, marginTop: 4, alignSelf: 'flex-end' },
-  inputRow:            { flexDirection: 'row', padding: 10, borderTopWidth: 1, alignItems: 'center' },
-  input:               { flex: 1, borderWidth: 1, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, fontSize: 16, marginRight: 8 },
-  sendButton:          { justifyContent: 'center', padding: 8 },
-  dateSeparatorContainer: { alignItems: 'center', marginVertical: 12 },
-  dateSeparatorText: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12, fontSize: 12, fontWeight: '600', overflow: 'hidden' },
+  dateSeparatorContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginVertical: 10,
+  },
+  dateSeparatorText: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 4,
+    fontSize: 12,
+    overflow: 'hidden',
+  },
+  bubble: {
+    marginVertical: 2,
+    padding: 10,
+    borderRadius: 10,
+    maxWidth: '80%',
+    alignSelf: 'flex-start',
+  },
+  myBubble: {
+    alignSelf: 'flex-end',
+  },
+  theirBubble: {
+    alignSelf: 'flex-start',
+  },
+  bubbleText: {
+    fontSize: 16,
+  },
+  timestamp: {
+    fontSize: 10,
+    marginTop: 2,
+  },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+  },
+  input: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 20,
+    padding: 8,
+    marginRight: 10,
+  },
+  sendButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  listContentContainer: {
+    padding: 10,
+  },
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 });

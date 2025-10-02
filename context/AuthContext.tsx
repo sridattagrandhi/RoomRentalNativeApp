@@ -5,7 +5,11 @@ import { FIREBASE_AUTH } from '../constants/firebaseConfig';
 import { Platform } from 'react-native';
 
 // --- ✅ CORRECTED BASE_URL DEFINITION ---
-const DEV_SERVER_URL = process.env.EXPO_PUBLIC_DEV_URL;
+// Determine the base URL for API requests.  In development the Expo client
+// exposes a `EXPO_PUBLIC_DEV_URL` environment variable when configured,
+// otherwise we fall back to a localhost URL.  Note that Android emulators
+// cannot reach `localhost` directly so we still use `10.0.2.2` there.
+const DEV_SERVER_URL = process.env.EXPO_PUBLIC_DEV_URL || 'http://localhost:5001';
 const PRODUCTION_SERVER_URL = 'https://your-production-api.com'; // Replace with your actual deployed server URL
 
 const BASE_URL = __DEV__
