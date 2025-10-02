@@ -1,14 +1,11 @@
 {
-  "name": "roomrentalnativeapp",
-  "main": "expo-router/entry",
+  "name": "roomrental-backend-api",
   "version": "1.0.0",
+  "main": "dist/server.js", 
   "scripts": {
-    "start": "expo start",
-    "reset-project": "node ./scripts/reset-project.js",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web",
-    "lint": "expo lint"
+    "build": "tsc", 
+    "start": "node dist/server.js", 
+    "dev": "ts-node src/server.ts" 
   },
   "dependencies": {
     "@expo/vector-icons": "^14.1.0",
@@ -43,14 +40,18 @@
     "react-native-web": "~0.20.0",
     "react-native-webview": "13.13.5",
     "socket.io-client": "^4.8.1",
-    "expo-notifications": "~0.31.4"
+    "expo-notifications": "~0.31.4",
+    "express": "^4.19.2",
+    "mongodb": "^6.8.0"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
     "@types/react": "~19.0.10",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~9.2.0",
-    "typescript": "~5.8.3"
+    "typescript": "~5.8.3",
+    "ts-node": "^10.0.0",
+    "@types/node": "^20.0.0"
   },
   "private": true
 }
