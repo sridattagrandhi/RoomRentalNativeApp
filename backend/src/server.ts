@@ -80,7 +80,7 @@ io.on('connection', (socket: Socket) => {
   socket.on('disconnect', () => socket.leave(`user-inbox-${mongoUserId}`));
 });
 
-const PORT = Number(process.env.PORT) || 5001;
+const PORT = Number(process.env.PORT) || 8080;
 
 // ✅ Start AFTER Mongo connects
 mongoose.connect(process.env.MONGO_URI!)
